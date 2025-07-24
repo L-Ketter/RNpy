@@ -1,4 +1,4 @@
-# RNpy
+# `RNpy`
 
 A python tool for running resistor network simulations based on simple voxel structures
 

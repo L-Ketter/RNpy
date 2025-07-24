@@ -1,7 +1,7 @@
 import time 
 import os
 import numpy as np
-import utils
+import hotplate_utils as utils
 import warnings
 import sys 
 from numba import njit, prange

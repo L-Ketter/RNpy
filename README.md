@@ -1,6 +1,6 @@
 # RNpy
 
-A tool for running resistor network simulations based on simple voxel structures
+A python tool for running resistor network simulations based on simple voxel structures
 
 ## Table of Contents 
 

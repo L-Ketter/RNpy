@@ -11,7 +11,7 @@ A python tool for running resistor network simulations based on simple voxel str
   
 ## System requirements
 
-## Installation guide
+## Installation
 
 ## How to cite?
 

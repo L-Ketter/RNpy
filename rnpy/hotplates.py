@@ -1,7 +1,7 @@
 import time 
 import os
 import numpy as np
-import hotplate_utils as utils
+from . import hotplate_utils as utils
 import warnings
 import sys 
 from numba import njit, prange
@@ -12,26 +12,25 @@ def SOR_update_numba(T_arr, omega, ks):
     nx, ny, nz = T_arr.shape
     for i in range(1, nx-1):
         for j in range(1, ny-1):
-            for k in range(1, nz-1):
-                
+            for k in range(1, nz-1):                
                 T_new = (
-                    T_arr[i+1, j, k] * kr_rel[i-1, j-1, k-1] +
-                    T_arr[i-1, j, k] * kl_rel[i-1, j-1, k-1] +
-                    T_arr[i, j+1, k] * kba_rel[i-1, j-1, k-1] +
-                    T_arr[i, j-1, k] * kf_rel[i-1, j-1, k-1] +
-                    T_arr[i, j, k+1] * kt_rel[i-1, j-1, k-1] +
-                    T_arr[i, j, k-1] * kb_rel[i-1, j-1, k-1]
+                    T_arr[i+1, j, k] * kr_rel[i-1, j-1, k-1]
+                    + T_arr[i-1, j, k] * kl_rel[i-1, j-1, k-1] 
+                    + T_arr[i, j+1, k] * kba_rel[i-1, j-1, k-1]
+                    + T_arr[i, j-1, k] * kf_rel[i-1, j-1, k-1] 
+                    + T_arr[i, j, k+1] * kt_rel[i-1, j-1, k-1] 
+                    + T_arr[i, j, k-1] * kb_rel[i-1, j-1, k-1]
                 ) 
-                # Divide by sum of conductivities
                 T_arr[i, j, k] += omega * (T_new - T_arr[i, j, k])
     return T_arr
 
 
 class HotPlate:    
     
-    def __init__(self, voxel_struc, phase_conds=None, **kwargs):
+    def __init__(self, voxel_struc, phase_conds, name='', **kwargs):
         self.voxel_struc = voxel_struc
         self.phase_conds = phase_conds
+        self.name = name
         self.T_l = kwargs.get('T_l', 1)
         self.T_r = kwargs.get('T_r', 0)    
         self.Lx = kwargs.get('L', 1)
@@ -175,7 +174,7 @@ class HotPlate:
             else:                
                 k_arrs[direction] = calc_bond_cond(k_spot,k_neighbor)
         
-        self.ksum_arr = np.zeros(self.voxel_struc.shape)
+        self.ksum_arr = np.zeros(self.voxel_struc.shape, dtype=self.dtype)
         for direc in ['r','l','ba','f','t','b']:
             self.ksum_arr += k_arrs[direc]
         self.ksum_arr[self.ksum_arr == 0] = 1e-100 # replace zero with a small number to avoid division with zero
@@ -197,7 +196,7 @@ class HotPlate:
         self.black_mask = ~(self.red_mask)
 
     def _get_T_new_Jacobi(self):        
-        neighbor_terms = self.xp.zeros((self.voxel_struc.shape))
+        neighbor_terms = self.xp.zeros((self.voxel_struc.shape), dtype=self.dtype)
         for direc in ['r', 'l', 'ba', 'f', 't', 'b']:
             neighbor_terms += self.T_arr[self.arr_slices[direc]] * getattr(self, f'k{direc}_rel_arr')
         T_new = neighbor_terms 
@@ -220,7 +219,7 @@ class HotPlate:
     
     def _get_residuals_new(self):
         ''' calculate the mean residual. '''  
-        neighbor_terms = self.xp.zeros((self.voxel_struc.shape))
+        neighbor_terms = self.xp.zeros((self.voxel_struc.shape), dtype=self.dtype)
         for direc in ['r', 'l', 'ba', 'f', 't', 'b']:
             neighbor_terms += self.T_arr[self.arr_slices[direc]] * getattr(self, f'k{direc}_rel_arr')        
         Resid = self.xp.abs(self.T_arr[self.arr_slices['center']] - neighbor_terms) 
@@ -277,10 +276,10 @@ class HotPlate:
             self._update_lists(iterations, residuals, kappas_sim, iteration, cutoff_resid, print_output=True)
         return omega, iteration, iterations, residuals, kappas_sim
 
-    def run(self, name, omega=1.979, max_iter=1000000, cutoff_resid = 1*10**-9, T_start=None, log_iter=50, save_iter=None, tune_omega=False):
+    def run(self, omega=1.979, max_iter=1000000, cutoff_resid = 1*10**-9, T_start=None, log_iter=50, save_iter=None, tune_omega=False):
         
         print("-"*70,
-              f"\n{name = }"
+              f"\n{self.name = }"
               "\nsetting up the RN simulation ...")
         t_start = time.time() 
         self._get_calc_arr()
@@ -299,10 +298,10 @@ class HotPlate:
                     omega, iteration, iterations, residuals, kappas_sim = self._tune_omega(omega, iteration, iterations, residuals, kappas_sim, cutoff_resid, T_start) 
 
             if save_iter is not None and residuals[-1] > cutoff_resid and iteration % save_iter == 0:
-                self._store_data(name, kappas=kappas_sim, residuals=residuals, T_arr=self.T_arr, iterations=iterations, tag='act')
+                self._store_data(self.name, kappas=kappas_sim, residuals=residuals, T_arr=self.T_arr, iterations=iterations, tag='act')
 
             if residuals[-1] < cutoff_resid or iteration == max_iter:
-                self._store_data(name, kappas=kappas_sim, residuals=residuals, T_arr=self.T_arr, iterations=iterations, save_residual_plot=True, tag='final')                
+                self._store_data(self.name, kappas=kappas_sim, residuals=residuals, T_arr=self.T_arr, iterations=iterations, save_residual_plot=True, tag='final')                
                 print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)')
                 break 
 

@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+
 def store_x_and_y_data(x, y, x_name, y_name, name=''):
     header = f"{x_name}\t{y_name}"
     with open(f"{name}.dat", "w") as f:

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from pyevtk.hl import imageToVTK   
   
 def blobs3D(size, disp_volfrac, sclust):
     ''' size = edge length in voxels,    
@@ -95,7 +96,12 @@ def seriesconnection3D(size, disp_volfrac):
     array = array_1D.reshape((size,size,size))  
     print('# total voxels', len(array_1D))
     print('# disp phase voxels:', (array == 1).sum())
-    return array        
+    return array  
+
+def get_vti(array, name=''):  
+    if len(array.shape) == 2:
+        array = array[:, :, np.newaxis]    
+    imageToVTK(name, cellData={"array": np.ascontiguousarray(array)})
 
 
 

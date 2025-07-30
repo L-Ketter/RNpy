@@ -1,2 +1,3 @@
 # Ignore conda build recipe folder
 conda/
+_test/

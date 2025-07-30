@@ -39,10 +39,11 @@ arr = comp.blobs3D(size=20,
                    sclust=10)
 comp.compositefigure(arr)
 ```
-Basic figures of small voxel structures can be made using the `compositefigure` function. However, for larger structures, the function becomes significantly slower. For such cases and for advanced visualizations it is recommended to convert the numpy array into a .vti and do visualizations using ParaView.
+Basic figures of small voxel structures can be made using the `compositefigure` function. However, for larger structures, the function becomes significantly slower. For such cases and for advanced visualizations it is recommended to convert the numpy array into a .vti via
 ```python
 comp.get_vti(arr, name="my_first_try")
 ```
+and do visualizations using ParaView.
 Next we will set up and run a resistor network. At first we build a `HotPlate` object using the `hotplates` module. We pass in the 3D microstructure generated earlier and specify phase_conds, a list where each entry corresponds to the conductivity value of the respective phase (i.e., the conductivity at index i applies to phase i in arr). The simulation outputs a few files having the name-tag specified through `name` that are stored in the `save_dir` directory. Finally we run our simulation using the `run` method. The simulation stops, when the specified `cutoff_resid` is reached. 
 ```python
 RN = hot.HotPlate(voxel_struc=arr,

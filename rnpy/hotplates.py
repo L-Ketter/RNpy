@@ -7,7 +7,33 @@ import sys
 from numba import njit, prange
 
 @njit
-def SOR_update_numba(T_arr, omega, ks):
+def _get_T_new_SOR(T_arr, omega, ks):
+    """
+    Generates a temperature array with updated temperatures. The updated temperatures
+    are calculated based on the conductivities and current temperatures using the 
+    successive over relaxation (SOR) method. 
+    numbas njit is utilized and speeds up the calculation significantly.
+
+    Parameters
+    ----------
+    T_arr : np.ndarray
+        an array with temperatures of all voxel_struc entries and boundaries.
+    omega: float
+        over-relaxation parameter. Typical values lie between 1 < omega < 2.
+        omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
+        rule of thumb: small values -> more stability,
+                       large values -> faster convergence
+    ks: list
+        list of the conductivities in all directions. The conductivities
+        entries need to be specified in the following order ['r','l','ba','f','t','b'] 
+         
+    Returns
+    -------
+    T_new : np.ndarray
+        3D array of temperatures.
+        - the temperature entries are updated according to the SOR method
+    """  
+    
     kr_rel, kl_rel, kba_rel, kf_rel, kt_rel, kb_rel = ks
     nx, ny, nz = T_arr.shape
     for i in range(1, nx-1):
@@ -48,7 +74,7 @@ class HotPlate:
         elif self.mat_bounds is not None and self.int_bounds is not None:
             self.mat_bounds = self.xp.array(self.mat_bounds, dtype=self.dtype)
             self.int_bounds = self.xp.array(self.int_bounds, dtype=self.dtype)
-        
+        self.directions = ['r','l','ba','f','t','b']
         self.arr_slices = {
             'center': (slice(1, -1), slice(1, -1), slice(1, -1)),
             'r': (slice(2, None), slice(1, -1), slice(1, -1)),
@@ -108,19 +134,18 @@ class HotPlate:
         -------
         kappa_arr : xp.ndarray
             3D array of conductivities with padded boundary values.
-            - The corresponding conductivity from `phase_conds` is assigned
+            - The corresponding conductivities from `phase_conds` are assigned
               for entries in `voxel_struc` matching the index in `phase_conds`
-            - Boundary planes are padded:
-              * +x and -x faces set to `inf`
-              * +y, -y, +z, -z faces set to 0
+            - boundary planes are padded:
+              * +x and -x faces set to `inf` (hotplates)
+              * +y, -y, +z, -z faces set to 0 (adiabatic boundaries)
         """
         
         kappa_arr = self.xp.zeros(self.voxel_struc.shape, dtype=self.dtype)
-        # assign conductivities of the pure phases
         for i, cond in enumerate(self.phase_conds):
             kappa_arr[self.voxel_struc == i] = cond
-        # add boundaries and assign noundary conducuctivities    
-        kappa_arr = self.xp.pad(kappa_arr,
+        kappa_arr = self.xp.pad(
+                                kappa_arr,
                                 pad_width = ((1,1), (1,1), (1,1)),
                                 mode = 'constant',
                                 constant_values = ((float('inf'), float('inf')), (0,0), (0,0)))
@@ -144,7 +169,7 @@ class HotPlate:
         
         integ_center = voxel_struc_w_bound_integ[self.arr_slices['center']]
         R_ints = {}
-        for direction in ['r','l','ba','f','t','b']:
+        for direction in self.directions:
             integ_neighbor = voxel_struc_w_bound_integ[self.arr_slices[direction]]
             interface_arr = boundary_matrix[integ_center, integ_neighbor] 
             R_ints[direction] = interface_arr
@@ -167,7 +192,7 @@ class HotPlate:
         
         k_spot = kappa_arr[self.arr_slices['center']]  
         k_arrs = {}              
-        for direction in ['r','l','ba','f','t','b']:
+        for direction in self.directions:
             k_neighbor = kappa_arr[self.arr_slices[direction]]
             if self.mat_bounds is not None and self.int_bounds is not None:
                 k_arrs[direction] = calc_bond_cond(k_spot,k_neighbor,R_ints[direction])
@@ -175,34 +200,77 @@ class HotPlate:
                 k_arrs[direction] = calc_bond_cond(k_spot,k_neighbor)
         
         self.ksum_arr = np.zeros(self.voxel_struc.shape, dtype=self.dtype)
-        for direc in ['r','l','ba','f','t','b']:
+        for direc in self.directions:
             self.ksum_arr += k_arrs[direc]
         self.ksum_arr[self.ksum_arr == 0] = 1e-100 # replace zero with a small number to avoid division with zero
                 
-        for direc in ['r','l','ba','f','t','b']:
+        for direc in self.directions:
             setattr(self, f'k{direc}_rel_arr', k_arrs[direc]/self.ksum_arr)
         
     def _get_T_arr_linguess(self):
-        length, width, height = [dim+2 for dim in self.voxel_struc.shape] # size of voxelstruc + boundaries
-        T_arr = self.xp.zeros((length, width, height), dtype=self.dtype)
+        """
+        Builds an initial temperature array with linearly de- or increasing
+        temperatures between the hotplates
+            
+        Returns
+        -------
+        kappa_arr : xp.ndarray
+            3D array of temperatures.
+            - the temperature entries are linearly de- or increasing
+              from `T_l`, the temperature of the left hotplate
+              to `T_r`, the temperature of the right hotplate. 
+        """
+
+        nx, ny, nz = [dim+2 for dim in self.voxel_struc.shape] # size of voxelstruc + boundaries
+        T_arr = self.xp.zeros((nx, ny, nz), dtype=self.dtype)
         T_arr[0] = self.T_l
         T_arr[-1] = self.T_r        
-        positions = self.xp.arange(1,length-1) - 1/2
-        T_arr[1:-1] = (self.T_l+((self.T_r-self.T_l)/(length-2))*positions)[:, None, None]
+        positions = self.xp.arange(1,nx-1) - 1/2
+        T_arr[1:-1] = (self.T_l+((self.T_r-self.T_l)/(nx-2))*positions)[:, None, None]
         return T_arr
     
     def _get_SOR_redblack_mask(self):
+        """
+        Generates checkerboard masks needed to update the Temperature array 
+        via the _update_SOR_redblack method.
+        """
+         
         self.red_mask = (self.xp.indices(self.voxel_struc.shape).sum(axis=0) % 2 == 0)
         self.black_mask = ~(self.red_mask)
 
-    def _get_T_new_Jacobi(self):        
-        neighbor_terms = self.xp.zeros((self.voxel_struc.shape), dtype=self.dtype)
-        for direc in ['r', 'l', 'ba', 'f', 't', 'b']:
-            neighbor_terms += self.T_arr[self.arr_slices[direc]] * getattr(self, f'k{direc}_rel_arr')
-        T_new = neighbor_terms 
+    def _get_T_new_Jacobi(self):  
+        """
+        Generates a temperature array with updated temperatures. The updated temperatures
+        are calculated based on the conductivities and current temperatures using the Jacobi method. 
+            
+        Returns
+        -------
+        T_new : xp.ndarray
+            3D array of temperatures, where temperature entries are updated
+            temperatures calculated via the Jacobi method.
+        """     
+
+        T_new = self.xp.zeros((self.voxel_struc.shape), dtype=self.dtype)
+        for direc in self.directions:
+            T_new += self.T_arr[self.arr_slices[direc]] * getattr(self, f'k{direc}_rel_arr')
         return T_new          
             
     def _update_SOR_redblack(self, omega): 
+        """
+        Updates temperatures in the current temperature array using the SOR redblack algorithm.
+        The algorithm is utilizing a two-step procedure: In the first step, the temperatures
+        in the red-mask, and in the second step, temperatures in the black mask are updated.
+        In each step, new temperatures are updated using the Jacobi method with over-relaxation
+        
+        Parameters
+        ----------
+        omega: float
+            over-relaxation parameter. Typical values lie between 1 < omega < 2.
+            omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
+            rule of thumb: small values -> more stability,
+                           large values -> faster convergence
+        """
+
         for color_mask in [self.red_mask, self.black_mask]:
             T_old = self.T_arr[self.arr_slices['center']]
             T_new = self._get_T_new_Jacobi()                
@@ -210,29 +278,64 @@ class HotPlate:
             T_old[color_mask] += T_change[color_mask]      
     
     def _update_SOR(self, omega):
+        """
+        Updates temperatures in the current temperature array using the SOR algorithm.
+
+        Parameters
+        ----------
+        omega: float
+            over-relaxation parameter. Typical values lie between 1 < omega < 2.
+            omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
+            rule of thumb: small values -> more stability,
+                           large values -> faster convergence
+        """
+
         T_arr = self.T_arr
         ks = []
-        for direc in ['r', 'l', 'ba', 'f', 't', 'b']:
+        for direc in self.directions:
             ks.append(getattr(self, f'k{direc}_rel_arr'))
                     
-        self.T_arr = SOR_update_numba(T_arr, omega, tuple(ks))
+        self.T_arr = _get_T_new_SOR(T_arr, omega, tuple(ks))
+  
+    def _get_residuals(self):
+        """
+        Calculates the mean residual. The mean residual is defined as the absolute 
+        temperature difference between the actual temperatures and updated temperatures 
+        calculated using the Jacobi method.
+        
+        Returns
+        -------
+        mean_resid: float
+            The mean residual of the current temperature distribution.
+        """  
+
+        T_new = self._get_T_new_Jacobi()
+        Resid = self.xp.abs(self.T_arr[self.arr_slices['center']] - T_new) 
+        mean_resid = self.xp.mean(Resid)
+        return mean_resid
     
-    def _get_residuals_new(self):
-        ''' calculate the mean residual. '''  
-        neighbor_terms = self.xp.zeros((self.voxel_struc.shape), dtype=self.dtype)
-        for direc in ['r', 'l', 'ba', 'f', 't', 'b']:
-            neighbor_terms += self.T_arr[self.arr_slices[direc]] * getattr(self, f'k{direc}_rel_arr')        
-        Resid = self.xp.abs(self.T_arr[self.arr_slices['center']] - neighbor_terms) 
-        mean_Resid = self.xp.mean(Resid)
-        return mean_Resid
-    
-    def get_kappa_left(self):
-        length = self.T_arr.shape[0]
-        x_len = (length-2)*self.dx
-        Q_arr = -(self.kl_rel_arr[0]*self.ksum_arr[0])*(self.T_arr[1, 1:-1, 1:-1]-self.T_l)/self.dx 
-        meanQ = self.xp.mean(Q_arr)
-        kappa_sim = -meanQ*(x_len)/(self.T_r-self.T_l)
-        return kappa_sim
+    def _get_kappa(self):
+        """
+        Calculated the effective conductivity. First the average flux density going through the network
+        along the field direction is calculated. Next, considering the mean flux density, 
+        the temperature difference specified by T_l and T_r, 
+        as well as the spacial distance between the hotplates, the effective conductivity is calculated using Fouriers law.
+               
+        Returns
+        -------
+        kappa: float
+            The effective conductivity calculated using Fouriers law.
+        """
+
+        nx = self.voxel_struc.shape[0]
+        x_len = nx*self.dx
+        Q_lr = (- self.kl_rel_arr*self.ksum_arr
+                * (self.T_arr[self.arr_slices['center']] - self.T_arr[self.arr_slices['l']])) / self.dx
+        Q_lr_last = (- self.kr_rel_arr[-1,:,:]*self.ksum_arr[-1,:,:]
+                     * (self.T_r - self.T_arr[-2, 1:-1, 1:-1])) / self.dx 
+        mean_Q_lr = np.mean(np.concatenate((Q_lr, Q_lr_last[np.newaxis,:,:]), axis=0))
+        kappa = - mean_Q_lr*x_len / (self.T_r-self.T_l)
+        return kappa
 
     def _store_data(self, name, iterations, residuals=None, kappas=None, T_arr=None, save_residual_plot=False, remove_act_files = True, tag='act'):        
         if remove_act_files:
@@ -261,8 +364,8 @@ class HotPlate:
             return val.get() if hasattr(val, "get") else val
 
         iterations.append(to_cpu(iteration))
-        kappas_sim.append(to_cpu(self.get_kappa_left()))
-        residuals.append(to_cpu(self._get_residuals_new()))           
+        kappas_sim.append(to_cpu(self._get_kappa()))
+        residuals.append(to_cpu(self._get_residuals()))           
         if print_output:
             print(f"\riteration: {iterations[-1]} | conductivity: {kappas_sim[-1]:.4f} | "
                   f"residual: {residuals[-1]:.2e} ==> {cutoff_resid:.2e}{10*' '}", end="", flush=True)

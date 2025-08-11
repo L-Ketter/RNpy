@@ -8,8 +8,8 @@ setup(
         "numpy",
         "matplotlib",
         "numba",
-        "scipy",
-        "pyevtk"
+        "pyevtk",
+        "cupy",
     ],
     author="Lukas Ketter",
     author_email="lukas-ketter@t-online.de",

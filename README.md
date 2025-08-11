@@ -49,9 +49,9 @@ Next we will set up and run a resistor network. At first we build a `HotPlate` o
 ```python
 RN = hot.HotPlate(voxel_struc=arr,
                   phase_conds=[3,5],
-                  name="arr1",
+                  name="arr",
                   set_dir="my_first_try") 
-RN.run(cutoff_resid=10**-9)
+RN.run(cutoff_resid=1e-9)
 ```
 
 

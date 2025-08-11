@@ -8,7 +8,7 @@ A python tool for running resistor network simulations based on voxel structures
 - Matplotlib 
 - Numba
 - pyevtk
-- cupy
+- CuPy
 
 ## Installation
 

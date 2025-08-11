@@ -45,7 +45,7 @@ Basic figures of small voxel structures can be made using the `compositefigure` 
 comp.get_vti(arr, name="my_first_try")
 ```
 and do visualizations using ParaView (https://www.paraview.org).  
-Next we will set up and run a resistor network. At first we build a `HotPlate` object using the `hotplates` module. We pass in the 3D microstructure generated earlier and specify phase_conds, a list where each entry corresponds to the conductivity value of the respective phase (i.e., the conductivity at index i applies to phase i in arr). The simulation outputs a few files having the name-tag specified through `name` that are stored in the `save_dir` directory. Finally we run our simulation using the `run` method. The simulation stops, when the specified `cutoff_resid` is reached. 
+Next we will set up and run a resistor network. At first we build a `HotPlate` object using the `hotplates` module. We pass in the 3D microstructure generated earlier and specify `phase_conds`, a list where each entry corresponds to the conductivity value of the respective phase (i.e., the conductivity at index i applies to phase i in arr). The simulation outputs a few files having the name-tag specified through `name` that are stored in the `save_dir` directory. Finally we run our simulation using the `run` method. The simulation stops, when the specified `cutoff_resid` is reached. 
 ```python
 RN = hot.HotPlate(voxel_struc=arr,
                   phase_conds=[3,5],

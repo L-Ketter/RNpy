@@ -15,7 +15,7 @@ A python tool for running resistor network simulations based on voxel structures
 You can install `RNpy` using conda with the following command:
 
 ```bash
-conda install rnpy
+conda install -c l-ketter rnpy
 ```
 
 ## How to cite?

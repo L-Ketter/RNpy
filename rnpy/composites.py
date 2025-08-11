@@ -3,10 +3,25 @@ import numpy as np
 from pyevtk.hl import imageToVTK   
   
 def blobs3D(size, disp_volfrac, sclust):
-    ''' size = edge length in voxels,    
-    disp_volfrac = volume fraction in percent,
-    sclust = number of voxels per cluster \n
-    returns a 3D cubic array representing a composite with dispersed phase inclusions of size sclust.'''        
+    """
+    Generates a 3D cubic array representing a binary composite with dispersed phase and inclusions of size sclust.
+    The dispersed phase is represented by 1s and the continuous phase by 0s.
+
+    Parameters
+    ----------
+    size : int
+        Edge length of the cubic array in voxels.
+    disp_volfrac : float
+        Volume fraction of the dispersed phase in percent (0-100).
+    sclust : int
+        Number of voxels per cluster of the dispersed phase inclusions.
+
+    Returns
+    -------
+    np.ndarray
+        A 3D cubic array with the dispersed phase inclusions represented by 1s and the continuous phase by 0s.
+    """
+          
     if disp_volfrac == 100 or disp_volfrac == 0 or sclust == 1:
         array = sc_random(size, disp_volfrac)
     else:
@@ -40,17 +55,32 @@ def blobs3D(size, disp_volfrac, sclust):
         print('# disp phase voxels:', (array==1).sum()) 
     return array
 
-def compositefigure(array, show=True, save=False, name='', cont_color='darkorchid', disp_color='khaki', filled=None):
-    ''' array = 3D array,
-    show = bool,    
-    save = bool,
-    name = str,\n
-    plots and saves the array.'''
-    filled = np.ones(array.shape, dtype=bool) if filled is None else filled # define to show all voxels
-    colors = np.zeros(array.shape, dtype=object) # define the colors of continuous and dispersed phase
-    colors[array == 0] = cont_color 
-    colors[array == 1] = disp_color  
-    colors[array == 2] = 'k'
+def compositefigure(array, show=True, save=False, name='', colors=['darkorchid', 'khaki']):
+    """
+    Generates a 3D composite figure from a 3D numpy array and saves or displays it. 
+    The array should contain integer values representing different phases, where each unique value corresponds to a different phase.
+    The phases are represented by different colors in the figure.
+    
+    Parameters
+    ----------
+    array : np.ndarray
+        A 3D numpy array containing integer values representing different phases.
+    show : bool, optional
+        If True, the figure will be displayed. Default is True.
+    save : bool, optional
+        If True, the figure will be saved as a PDF file. Default is False.
+    name : str, optional
+        The output file name (without extension). Default is an empty string.
+    colors : list of str, optional
+        A list of colors to represent the different phases in the figure. Default is ['darkorchid', 'khaki'].
+        Length of the list should match the number of unique phases in the array.
+    """
+    
+    filled = np.ones(array.shape, dtype=bool) 
+    colors = np.zeros(array.shape, dtype=object) 
+
+    for i in range(array.max()+1):
+        colors[array == i] = colors[i] if i < len(colors) else 'gray' 
     # plot and save the figure
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -65,40 +95,90 @@ def compositefigure(array, show=True, save=False, name='', cont_color='darkorchi
         plt.show() # show the image
     plt.close()           
 
-def parallelconnection3D(size, disp_volfrac):
-    ''' size = edge length in voxels,    
-    disp_volfrac = volume fraction in percent \n
-    returns a 3D cubic array representing a parallel connected composite.'''
-    array = seriesconnection3D(size, disp_volfrac)  
+def parallelconnection3D(size, volfracs):
+    """
+    Generates a 3D cubic array representing a parallel connected composite. (phases stacked along the z-axis))
+    The number of voxels in each phase is determined by the volume fractions provided.
+
+    Parameters
+    ----------
+    size : int
+        Edge length of the cubic array in voxels.
+    volfracs : list of float
+        List of volume fractions for each phase in percent (0-100). The sum of the
+        volume fractions should equal 100.
+
+    Returns
+    -------
+    np.ndarray
+        A 3D cubic array with phases stacked along the z-axis.
+    """
+
+    array = seriesconnection3D(size, volfracs)  
     array = np.rot90(array, k=1, axes=(0,2))
     return array
         
-def sc_random(size, disp_volfrac):
-    ''' size = edge length in voxels,    
-    disp_volfrac = volume fraction in percent \n
-    returns a 3D cubic array representing a randomly mixed composite.'''
-    disp_voxel_num = int(size**3 * disp_volfrac / 100)
-    cont_voxel_num = int(size**3 - disp_voxel_num)
-    array_1D = np.array([1]*disp_voxel_num + [0]*cont_voxel_num)
-    np.random.shuffle(array_1D)
-    array = array_1D.reshape((size,size,size))
-    print('# total voxels', len(array_1D))
-    print('# disp phase voxels:', (array == 1).sum())
+def sc_random(size, volfracs):
+    """
+    Generates a 3D cubic array representing a random composite with specified volume fractions.
+    The number of voxels in each phase is determined by the volume fractions provided.
+    
+    Parameters
+    ----------
+    size : int
+        Edge length of the cubic array in voxels.
+    volfracs : list of float
+        List of volume fractions for each phase in percent (0-100). The sum of the
+        volume fractions should equal 100.
+    
+    Returns
+    -------
+    np.ndarray
+        A 3D cubic array with phases randomly distributed.
+    """    
+
+    ordered = seriesconnection3D(size, volfracs).flatten()
+    rng = np.random.default_rng()
+    shuffled = rng.permutation(ordered)
+    array = shuffled.reshape((size, size, size))
     return array 
 
-def seriesconnection3D(size, disp_volfrac):
-    ''' size = edge length in voxels,    
-    disp_volfrac = volume fraction in percent \n
-    returns a 3D cubic array representing a series connected composite.'''
-    disp_voxel_num = int(size**3 * disp_volfrac / 100)
-    cont_voxel_num = int(size**3 - disp_voxel_num)
-    array_1D = np.array([1]*disp_voxel_num + [0]*cont_voxel_num)
-    array = array_1D.reshape((size,size,size))  
-    print('# total voxels', len(array_1D))
-    print('# disp phase voxels:', (array == 1).sum())
+def seriesconnection3D(size, volfracs):
+    """
+    Generates a 3D cubic array representing a series connected composite. (phases stacked along the x-axis))
+    The number of voxels in each phase is determined by the volume fractions provided.
+
+    Parameters
+    ----------
+    size : int
+        Edge length of the cubic array in voxels.
+    volfracs : list of float
+        List of volume fractions for each phase in percent (0-100). The sum of the
+        volume fractions should equal 100.
+
+    Returns
+    -------
+    np.ndarray
+        A 3D cubic array with phases stacked along the x-axis.
+    """
+
+    vox_nums = size**3 * np.array(volfracs)/100 # convert to fraction
+    array_1D = [[i]*vox_nums[i] for i in range(len(vox_nums))][0]   
+    array = array_1D.reshape((size, size, size))  
     return array  
 
-def get_vti(array, name=''):  
+def get_vti(array, name='output'):  
+    """
+    Converts a 3D numpy array to a VTI file format using pyevtk.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        A 3D numpy array to be converted.
+    name : str, optional
+        The name of the output VTI file. If not provided, the file will be named 'output.vti'. Default is 'output'.
+    """
+
     if len(array.shape) == 2:
         array = array[:, :, np.newaxis]    
     imageToVTK(name, cellData={"array": np.ascontiguousarray(array)})

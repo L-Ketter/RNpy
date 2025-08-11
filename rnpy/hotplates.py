@@ -3,8 +3,7 @@ import os
 import numpy as np
 from . import hotplate_utils as utils
 import warnings
-import sys 
-from numba import njit, prange
+from numba import njit
 
 @njit
 def _get_T_new_SOR(T_arr, omega, ks):
@@ -18,7 +17,7 @@ def _get_T_new_SOR(T_arr, omega, ks):
     ----------
     T_arr : np.ndarray
         an array with temperatures of all voxel_struc entries and boundaries.
-    omega: float
+    omega : float
         over-relaxation parameter. Typical values lie between 1 < omega < 2.
         omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
         rule of thumb: small values -> more stability,
@@ -427,32 +426,34 @@ class HotPlate:
         kappa = - mean_Q_lr*x_len / (self.T_r-self.T_l)
         return kappa
 
-    def _store_data(self, name, iterations, residuals=None, kappas=None, T_arr=None, save_residual_plot=False, remove_act_files=True, tag='act'):  
+    def _store_data(self, name, tag, save_residual_plot=False, remove_act_files=True):  
         """
-        Stores the simulation data in the specified directory.
+        Stores the simulation data (conductivities, residuals, Temperature array) in the specified directory
+        and removes files with the 'act' tag if specified.
 
         Parameters
         ----------
         name : str
             Name of the simulation. Used to create the filename for storing the data.
-        
+        tag : str
+            Tag should be "act" or "final" and is used to differentiate between different states of the simulation.
         """      
         if remove_act_files:
-            self._remove_act_files(tag='act') 
-        if kappas is not None:
-            utils.store_x_and_y_data(np.array(iterations), np.array(kappas), 'iteration','kappa_sim',
-                                     name=os.path.join(self.set_dir, f'{name}_iter_{iterations[-1]}_{tag}kappa_{kappas[-1]:.5f}'))
-        if residuals is not None:
-            utils.store_x_and_y_data(np.array(iterations), np.array(residuals), 'iteration', 'residual',
-                                     name=os.path.join(self.set_dir, f'{name}_iter_{iterations[-1]}_{tag}resid_{residuals[-1]:.2e}')) 
+            self._remove_files(name, tag='act') 
+        if self.kappas_sim is not None:
+            utils.store_x_and_y_data(np.array(self.iterations), np.array(self.kappas_sim), 'iteration','kappa_sim',
+                                     name=os.path.join(self.set_dir, f'{name}_iter_{self.iterations[-1]}_{tag}kappa_{self.kappas_sim[-1]:.5f}'))
+        if self.residuals is not None:
+            utils.store_x_and_y_data(np.array(self.iterations), np.array(self.residuals), 'iteration', 'residual',
+                                     name=os.path.join(self.set_dir, f'{name}_iter_{self.iterations[-1]}_{tag}resid_{self.residuals[-1]:.2e}')) 
             if save_residual_plot:
-                utils.makelogplot(np.array(iterations), np.array(residuals), 'iteration', 'residual / K',
+                utils.makelogplot(np.array(self.iterations), np.array(self.residuals), 'iteration', 'residual / K',
                                 xscale='lin', yscale='log', save=True, show=False,
                                 name=os.path.join(self.set_dir, f'{name}_residuals_{tag}')) 
-        if T_arr is not None:
-            self.xp.save(os.path.join(self.set_dir, f'{name}_iter_{iterations[-1]}_{tag}Tarr.npy'), self.T_arr)
+        if self.T_arr is not None:
+            self.xp.save(os.path.join(self.set_dir, f'{name}_iter_{self.iterations[-1]}_{tag}Tarr.npy'), self.T_arr)
 
-    def _remove_act_files(self, tag='act'):
+    def _remove_files(self, name, tag='act'):
         """
         Removes all files in the set directory that contain the specified tag.
 
@@ -465,60 +466,105 @@ class HotPlate:
         for filename in os.listdir(self.set_dir):
             if tag in filename and name in filename:
                 os.remove(os.path.join(self.set_dir, filename))
-
         
-    def _update_lists(self, iterations, residuals, kappas_sim, iteration, cutoff_resid, print_output=True):
+    def _update_lists(self, print_output=True):
+        """
+        Updates the lists of iterations, kappas, and residuals with the current values. 
+        It also prints the current iteration, effective conductivity, and residual if `print_output` is True.
+
+        Parameters
+        ----------
+        print_output : bool, optional
+            If True, prints the current iteration, effective conductivity, and residual.
+        """
+        
         def to_cpu(val):
             return val.get() if hasattr(val, "get") else val
-
-        iterations.append(to_cpu(iteration))
-        kappas_sim.append(to_cpu(self._get_kappa()))
-        residuals.append(to_cpu(self._get_residuals()))           
+        self.iterations.append(to_cpu(self.iteration))
+        self.kappas_sim.append(to_cpu(self._get_kappa()))
+        self.residuals.append(to_cpu(self._get_residuals()))           
         if print_output:
-            print(f"\riteration: {iterations[-1]} | conductivity: {kappas_sim[-1]:.4f} | "
-                  f"residual: {residuals[-1]:.2e} ==> {cutoff_resid:.2e}{10*' '}", end="", flush=True)
+            print(f"\riteration: {self.iterations[-1]} | conductivity: {self.kappas_sim[-1]:.4f} | "
+                  f"residual: {self.residuals[-1]:.2e} ==> {self.cutoff_resid:.2e}{10*' '}", end="", flush=True)
         
-    def _tune_omega(self, omega, iteration, iterations, residuals, kappas_sim, cutoff_resid, T_start):
-        if len(residuals) >= 3 and omega > 1 and residuals[-3] < residuals[-2] < residuals[-1]:
-            omega = max(omega - 0.1, 1.0)            
-            print(f"\nrestarting with new omega ({omega:.3f}) ...")
-            self.T_arr = self.xp.load(os.path.join(self.set_dir, T_start)) if T_start else self._get_T_arr_linguess()
-            iteration, iterations, residuals, kappas_sim = 0, [], [], []
-            self._update_lists(iterations, residuals, kappas_sim, iteration, cutoff_resid, print_output=True)
-        return omega, iteration, iterations, residuals, kappas_sim
+    def _tune_omega(self):
+        """
+        Tunes the omega parameter based on the convergence behavior of the residuals.
+        If last three residuals are increasing, it reduces omega by 0.1 and restarts the simulation.
+        If omega is at 1.0, it is not changed any further.
+        """
 
-    def run(self, omega=1.979, max_iter=1000000, cutoff_resid = 1*10**-9, T_start=None, log_iter=50, save_iter=None, tune_omega=False):
-        
+        if len(self.residuals) >= 3 and omega > 1 and self.residuals[-3] < self.residuals[-2] < self.residuals[-1]:
+            self.omega = max(omega - 0.1, 1.0)            
+            print(f"\nrestarting with new omega ({omega:.3f}) ...")
+            self.T_arr = self.T_start
+            self.iteration, self.iterations, self.residuals, self.kappas_sim = 0, [], [], []
+            self._update_lists(print_output=True)
+
+    def run(self, omega=1.979, max_iter=1e7, cutoff_resid=1e-9, T_start=None, log_iter=50, save_iter=None, tune_omega=False):
+        """        
+        Runs the hotplate simulation until convergence or until the maximum number of iterations is reached.
+        The simulation iteratively updates the temperature array using the SOR method (or in gpu-mode SOR red-black) until the residuals
+        are below the specified cutoff or the maximum number of iterations is reached.
+
+        Parameters
+        ----------
+        omega: float, optional
+            Overt-relaxation parameter for the SOR method. Default is 1.979
+            Typical values lie between 1 < omega < 2.
+            omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
+            rule of thumb: small values -> more stability,
+                        large values -> faster convergence   
+        max_iter : int, optional
+            Maximum number of iterations to run the simulation. Default is 1e7.
+        cutoff_resid : float, optional
+            Cutoff value for the residuals. The simulation stops when the mean residual is below this value.
+            Default is 1e-9.    
+        T_start : str, optional
+            Path to a file containing the initial temperature array. If None, a linear temperature array is
+            generated between the hotplates. Default is None.
+        log_iter : int, optional
+            Interval for logging the current iteration, effective conductivity, and residual. 
+            If None, no logging is done. Default is 50. 
+        save_iter : int, optional
+            Interval for saving the current state of the simulation. If None, no saving is done until the end of the calculation.
+            Default is None.
+        tune_omega : bool, optional    
+            If True, tunes the omega parameter based on the convergence behavior of the residuals.
+            If False, uses the specified omega value throughout the simulation. Default is False.
+        """
+
+        self.omega = omega
+        self.max_iter = max_iter
+        self.cutoff_resid = cutoff_resid
+        self.T_start = self.xp.load(os.path.join(self.set_dir, T_start)) if T_start else self._get_T_arr_linguess()
         print("-"*70,
               f"\n{self.name = }"
               "\nsetting up the RN simulation ...")
         t_start = time.time() 
         self._get_calc_arr()
-        self.T_arr = self.xp.load(os.path.join(self.set_dir, T_start)) if T_start else self._get_T_arr_linguess()
-        self._get_SOR_redblack_mask()
-        
-        iteration = 0
-        iterations, residuals, kappas_sim = [], [], []
-        print('approximating the steady state ...')         
-        # iterating using the SOR method until cutoff criterion or max number of iterations is reached
-        while iteration < (max_iter+1):
-          
-            if log_iter is not None and iteration % log_iter == 0:
-                self._update_lists(iterations, residuals, kappas_sim, iteration, cutoff_resid, print_output=True)             
+        self.T_arr = self.T_start                
+        self.iteration = 0
+        self.iterations, self.residuals, self.kappas_sim = [], [], []
+        print('approximating the steady state ...')    
+        while self.iteration <= self.max_iter:          
+            if log_iter is not None and self.iteration % log_iter == 0:
+                self._update_lists(print_output=True)             
                 if tune_omega:
-                    omega, iteration, iterations, residuals, kappas_sim = self._tune_omega(omega, iteration, iterations, residuals, kappas_sim, cutoff_resid, T_start) 
-
-            if save_iter is not None and residuals[-1] > cutoff_resid and iteration % save_iter == 0:
-                self._store_data(self.name, kappas=kappas_sim, residuals=residuals, T_arr=self.T_arr, iterations=iterations, tag='act')
-
-            if residuals[-1] < cutoff_resid or iteration == max_iter:
-                self._store_data(self.name, kappas=kappas_sim, residuals=residuals, T_arr=self.T_arr, iterations=iterations, save_residual_plot=True, tag='final')                
+                    self._tune_omega() 
+            if save_iter is not None and self.residuals[-1] > self.cutoff_resid and self.iteration % save_iter == 0:
+                self._store_data(self.name, tag='act')
+            if self.residuals[-1] < self.cutoff_resid or self.iteration == self.max_iter:
+                if self.iteration == self.max_iter:
+                    warnings.warn(f"Maximum number of iterations ({self.max_iter}) reached without convergence below {self.cutoff_resid}.")
+                self._store_data(self.name, tag='final', save_residual_plot=True)                
                 print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)')
                 break 
-
-            iteration += 1 
-            #self._update_SOR(omega)
-            self._update_SOR_redblack(omega) # updating all temperatures using the SOR method              
+            self.iteration += 1 
+            if self.use_gpu:
+                self._update_SOR_redblack(omega)
+            elif not self.use_gpu:
+                self._update_SOR(omega)            
                     
                     
         

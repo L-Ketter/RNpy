@@ -23,7 +23,7 @@ def blobs3D(size, disp_volfrac, sclust):
     """
           
     if disp_volfrac == 100 or disp_volfrac == 0 or sclust == 1:
-        array = sc_random(size, disp_volfrac)
+        array = sc_random(size, volfracs=[100-disp_volfrac, disp_volfrac])
     else:
         array = np.zeros((size, size, size), dtype=int) 
         disp_voxel_num = size**3 * disp_volfrac / 100
@@ -77,14 +77,14 @@ def compositefigure(array, show=True, save=False, name='', colors=['darkorchid',
     """
     
     filled = np.ones(array.shape, dtype=bool) 
-    colors = np.zeros(array.shape, dtype=object) 
+    color_arr = np.zeros(array.shape, dtype=object) 
 
     for i in range(array.max()+1):
-        colors[array == i] = colors[i] if i < len(colors) else 'gray' 
+        color_arr[array == i] = colors[i] if i < len(colors) else 'gray'
     # plot and save the figure
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.voxels(filled, facecolors=colors)  
+    ax.voxels(filled, facecolors=color_arr)  
     ax.set(xlim=(0,array.shape[0]), ylim=(0,array.shape[1]), zlim=(0,array.shape[2]))
     ax.set_aspect('equal')        
     ax.set_axis_off()        
@@ -95,7 +95,7 @@ def compositefigure(array, show=True, save=False, name='', colors=['darkorchid',
         plt.show() # show the image
     plt.close()           
 
-def parallelconnection3D(size, volfracs):
+def parallel_connected(size, volfracs):
     """
     Generates a 3D cubic array representing a parallel connected composite. (phases stacked along the z-axis))
     The number of voxels in each phase is determined by the volume fractions provided.
@@ -114,7 +114,7 @@ def parallelconnection3D(size, volfracs):
         A 3D cubic array with phases stacked along the z-axis.
     """
 
-    array = seriesconnection3D(size, volfracs)  
+    array = series_connected(size, volfracs)  
     array = np.rot90(array, k=1, axes=(0,2))
     return array
         
@@ -137,13 +137,13 @@ def sc_random(size, volfracs):
         A 3D cubic array with phases randomly distributed.
     """    
 
-    ordered = seriesconnection3D(size, volfracs).flatten()
+    ordered = series_connected(size, volfracs).flatten()
     rng = np.random.default_rng()
     shuffled = rng.permutation(ordered)
     array = shuffled.reshape((size, size, size))
     return array 
 
-def seriesconnection3D(size, volfracs):
+def series_connected(size, volfracs):
     """
     Generates a 3D cubic array representing a series connected composite. (phases stacked along the x-axis))
     The number of voxels in each phase is determined by the volume fractions provided.
@@ -160,12 +160,22 @@ def seriesconnection3D(size, volfracs):
     -------
     np.ndarray
         A 3D cubic array with phases stacked along the x-axis.
+    
+    Raises
+    ------
+    ValueError
+        If the sum of the volume fractions does not equal 100.
     """
 
-    vox_nums = size**3 * np.array(volfracs)/100 # convert to fraction
-    array_1D = [[i]*vox_nums[i] for i in range(len(vox_nums))][0]   
+    if np.sum(volfracs) != 100:
+       raise ValueError("The sum of volume fractions must equal 100.") 
+    vox_nums = (size**3 * np.array(volfracs)/100).astype(int)
+    array_1D = []
+    for i, count in enumerate(vox_nums):
+        array_1D += [i] * count
+    array_1D = np.array(array_1D).flatten()  
     array = array_1D.reshape((size, size, size))  
-    return array  
+    return array 
 
 def get_vti(array, name='output'):  
     """

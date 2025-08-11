@@ -2,6 +2,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def store_x_and_y_data(x, y, x_name, y_name, name=''):
+    """
+    Stores x and y data in a .dat file with specified names.
+
+    Parameters:
+    ----------- 
+    x, y : array
+        lists or arrays containing the data to be saved.
+    x_name, y_name : str
+        names of the x and y data for the header of the file.
+    name : str
+        name of the file to save data in. Default is an empty string.
+    """
+
     header = f"{x_name}\t{y_name}"
     with open(f"{name}.dat", "w") as f:
         f.write(header + "\n")
@@ -9,10 +22,24 @@ def store_x_and_y_data(x, y, x_name, y_name, name=''):
             f.write(f"{x[i]}\t{y[i]}\n")
 
 def makelogplot(x, y, xlabel, ylabel, xscale='lin', yscale='lin', show=True, save=False, name=''):
-    ''' x, y = array,
-    xlabel, ylabel, name = str,
-    save = bool,
-    returns a linear plot of the data.'''
+    """
+    Creates a linear or logarithmic plot of the data.
+    Parameters:
+    -----------
+    x, y : array
+        lists or arrays containing the data to be plotted.
+    xlabel, ylabel : str
+        labels for the x and y axes.
+    xscale, yscale : str
+        scale for the x and y axes, either 'lin' for linear or 'log' for logarithmic.
+    show : bool
+        whether to display the plot. Default is True.
+    save : bool
+        whether to save the plot as a PDF file. Default is False.
+    name : str
+        name of the file to save the plot in. Default is an empty string.
+    """
+
     if len(x) == 1 or len(y) == 1:
         return
     cm_width = cm_height = 5 #cm
@@ -53,7 +80,19 @@ def makelogplot(x, y, xlabel, ylabel, xscale='lin', yscale='lin', show=True, sav
     plt.close(fig)
     
 def format_seconds(seconds):
-    """Formats seconds into a string of the form 'hh:mm:ss'."""
+    """
+    Formats seconds into a string of the form 'hh:mm:ss'.
+    
+    Parameters:
+    -----------
+    seconds : int
+        the number of seconds to format.
+
+    Returns:
+    --------
+    a string representing the time in hours, minutes, and seconds.
+    """
+
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     seconds = int(seconds % 60)

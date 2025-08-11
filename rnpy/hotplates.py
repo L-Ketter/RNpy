@@ -17,7 +17,7 @@ def _get_T_new_SOR(T_arr, omega, ks):
     ----------
     T_arr : np.ndarray
         an array with temperatures of all voxel_struc entries and boundaries.
-    omega : float
+    omega: float
         over-relaxation parameter. Typical values lie between 1 < omega < 2.
         omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
         rule of thumb: small values -> more stability,
@@ -51,7 +51,8 @@ def _get_T_new_SOR(T_arr, omega, ks):
 
 
 class HotPlate:    
-    """Class for simulating conduction in a 3D voxel structure.
+    """
+    Class for simulating conduction in a 3D voxel structure.
     
     Parameters
     ----------
@@ -75,7 +76,10 @@ class HotPlate:
         If provided, it must be accompanied by `int_bounds`.   
     int_bounds : list, optional
         List of boundary resistances between materials and hot plates. Default is None.
-        If provided, it must be accompanied by `mat_bounds`.     
+        If provided, it must be accompanied by `mat_bounds`.
+    T_start : str, optional
+        Path to a file containing the initial temperature array. If None, a linear temperature array is
+        generated between the hotplates. Default is None.
 
     Other Parameters
     ----------------
@@ -96,7 +100,7 @@ class HotPlate:
         If `use_gpu=True` but CUDA is not available.
     """
 
-    def __init__(self, voxel_struc, phase_conds, name='', dtype=None, set_dir='.', use_gpu=False, mat_bounds=None, int_bounds=None,  **kwargs):
+    def __init__(self, voxel_struc, phase_conds, name='', dtype=None, set_dir='.', use_gpu=False, mat_bounds=None, int_bounds=None, T_start=None, **kwargs):
         self.voxel_struc = voxel_struc
         self.phase_conds = phase_conds
         self.name = name
@@ -104,21 +108,25 @@ class HotPlate:
         self.set_dir = set_dir        
         self._build_working_directory(self.set_dir)
 
-        self.use_gpu = use_gpu        
-        self._choose_array_backend(kwargs.get('use_gpu', False)) 
+        self.use_gpu = use_gpu             
+        self._choose_array_backend()   
+        if self.use_gpu:
+            self._get_SOR_redblack_mask() 
 
         self.mat_bounds = mat_bounds
         self.int_bounds = int_bounds
         if (self.mat_bounds is not None) != (self.int_bounds is not None):
             raise ValueError("To consider interfaces, both 'mat_bounds' and 'int_bounds' must be provided together. Only one was provided.")
         elif self.mat_bounds is not None and self.int_bounds is not None:
-            self.mat_bounds = self.xp.array(self.mat_bounds, dtype=self.dtype)
-            self.int_bounds = self.xp.array(self.int_bounds, dtype=self.dtype)
-
+            self.mat_bounds = np.array(self.mat_bounds, dtype=self.dtype)
+            self.int_bounds = np.array(self.int_bounds, dtype=self.dtype)
+        
         self.T_l = kwargs.get('T_l', 1)
         self.T_r = kwargs.get('T_r', 0)    
         self.Lx = kwargs.get('L', 1)
         self.dx = self.Lx/voxel_struc.shape[0]
+        
+        self.T_start = self.xp.load(os.path.join(self.set_dir, T_start)) if T_start else self._get_T_arr_linguess()
         
         self.directions = ['r','l','ba','f','t','b']
         self.arr_slices = {
@@ -143,14 +151,9 @@ class HotPlate:
         if not os.path.exists(directory):
             os.makedirs(directory)
     
-    def _choose_array_backend(self, use_gpu):
+    def _choose_array_backend(self):
         """
         Selects NumPy (CPU) or CuPy (GPU) as the array backend.
-    
-        Parameters
-        ----------
-        use_gpu : bool
-            True to use CuPy with GPU accelaration, False to use numpy.
             
         Raises
         ------
@@ -160,7 +163,7 @@ class HotPlate:
             If `use_gpu=True` but CUDA is unavailable.
         """        
         
-        if use_gpu:
+        if self.use_gpu:
             try:
                 import cupy as cp 
             except ImportError: 
@@ -198,15 +201,16 @@ class HotPlate:
     
     def _get_R_interface_arr(self):
         """
-        Builds the interface resistance arrays. 
+        Builds the interface resistance arrays (on the cpu, and later shuttles it on the gpu if needed)
         First pad integers for the plates and adiabatic boundaries to the voxel_struc.
         Then combine `mat_bounds` and `int_bounds` into a boundary matrix as in the following example: 
-        mat_bounds = [[0, 1], [1, 0]]
-        int_bounds = [0.5, 0.5]
-        boundary_matrix = [[0     , 1     , 0.5,    np.inf], 
-                           [1     , 0     , 0.5,    np.inf], 
-                           [0.5   , 0.5   , np.inf, np.inf],
-                           [np.inf, np.inf, np.inf, np.inf]]
+        int_bounds = [0,1]
+        mat_bounds = [[2,3],
+                      [4,5]]
+        boundary_matrix = [[ 2.  3.  0. inf]
+                           [ 4.  5.  1. inf]
+                           [ 0.  1. inf inf]
+                           [inf inf inf inf]]      
         Then generate the interface resistance arrays for each direction, based on the padded voxel structure and the boundary matrix.
 
         Returns
@@ -215,9 +219,10 @@ class HotPlate:
             Dictionary with interface resistance arrays for each direction.
             The keys are the directions ('r', 'l', 'ba', 'f', 't', 'b') and the values are the corresponding resistance arrays.
         """
-        plate_integ = self.voxel_struc.max() + 1
-        adiabatic_integ = self.voxel_struc.max() + 2        
-        voxel_struc_w_bound_integ = self.xp.pad(self.voxel_struc,
+        voxel_struc_np = self._to_cpu(self.voxel_struc)
+        plate_integ = voxel_struc_np.max() + 1
+        adiabatic_integ = voxel_struc_np.max() + 2        
+        voxel_struc_w_bound_integ = np.pad(voxel_struc_np,
                                 pad_width = ((1,1), (1,1), (1,1)),
                                 mode = 'constant',
                                 constant_values = ((plate_integ,plate_integ),
@@ -234,7 +239,7 @@ class HotPlate:
         for direction in self.directions:
             integ_neighbor = voxel_struc_w_bound_integ[self.arr_slices[direction]]
             interface_arr = boundary_matrix[integ_center, integ_neighbor] 
-            R_ints[direction] = interface_arr
+            R_ints[direction] = self.xp.asarray(interface_arr)       
         return R_ints
             
     def _get_calc_arr(self):
@@ -288,7 +293,7 @@ class HotPlate:
             else:                
                 k_arrs[direction] = _calc_bond_cond(k_spot,k_neighbor)
         
-        self.ksum_arr = np.zeros(self.voxel_struc.shape, dtype=self.dtype)
+        self.ksum_arr = self.xp.zeros(self.voxel_struc.shape, dtype=self.dtype)
         for direc in self.directions:
             self.ksum_arr += k_arrs[direc]
         self.ksum_arr[self.ksum_arr == 0] = 1e-100 # replace zero with a small number to avoid division with zero
@@ -461,12 +466,28 @@ class HotPlate:
         ----------
         tag : str
             Tag to search for in the filenames. Files containing this tag will be removed.
-        """"
+        """
 
         for filename in os.listdir(self.set_dir):
             if tag in filename and name in filename:
                 os.remove(os.path.join(self.set_dir, filename))
-        
+    
+    def _to_cpu(self, val):
+        """ 
+        Converts a value to CPU if it is a CuPy array, otherwise returns the value as is.
+
+        Parameters
+        ----------
+        val : any
+            The value to be converted. It can be a CuPy array, NumPy array, or any other type.
+
+        Returns
+        -------
+        any
+            The value converted to CPU if it was a CuPy array, otherwise the original value.
+        """
+        return val.get() if hasattr(val, "get") else val
+                
     def _update_lists(self, print_output=True):
         """
         Updates the lists of iterations, kappas, and residuals with the current values. 
@@ -477,12 +498,10 @@ class HotPlate:
         print_output : bool, optional
             If True, prints the current iteration, effective conductivity, and residual.
         """
-        
-        def to_cpu(val):
-            return val.get() if hasattr(val, "get") else val
-        self.iterations.append(to_cpu(self.iteration))
-        self.kappas_sim.append(to_cpu(self._get_kappa()))
-        self.residuals.append(to_cpu(self._get_residuals()))           
+                
+        self.iterations.append(self._to_cpu(self.iteration))
+        self.kappas_sim.append(self._to_cpu(self._get_kappa()))
+        self.residuals.append(self._to_cpu(self._get_residuals()))           
         if print_output:
             print(f"\riteration: {self.iterations[-1]} | conductivity: {self.kappas_sim[-1]:.4f} | "
                   f"residual: {self.residuals[-1]:.2e} ==> {self.cutoff_resid:.2e}{10*' '}", end="", flush=True)
@@ -490,18 +509,18 @@ class HotPlate:
     def _tune_omega(self):
         """
         Tunes the omega parameter based on the convergence behavior of the residuals.
-        If last three residuals are increasing, it reduces omega by 0.1 and restarts the simulation.
+        If last four residuals are increasing, it reduces omega by 0.1 and restarts the simulation.
         If omega is at 1.0, it is not changed any further.
         """
 
-        if len(self.residuals) >= 3 and omega > 1 and self.residuals[-3] < self.residuals[-2] < self.residuals[-1]:
-            self.omega = max(omega - 0.1, 1.0)            
-            print(f"\nrestarting with new omega ({omega:.3f}) ...")
-            self.T_arr = self.T_start
+        if len(self.residuals) >= 4 and self.omega > 1 and self.residuals[-4] < self.residuals[-3] < self.residuals[-2] < self.residuals[-1]:
+            self.omega = max(self.omega - 0.1, 1.0)            
+            print(f"\nrestarting with new omega ({self.omega:.3f}) ...")
+            self.T_arr = self.T_start.copy()
             self.iteration, self.iterations, self.residuals, self.kappas_sim = 0, [], [], []
             self._update_lists(print_output=True)
 
-    def run(self, omega=1.979, max_iter=1e7, cutoff_resid=1e-9, T_start=None, log_iter=50, save_iter=None, tune_omega=False):
+    def run(self, omega=1.979, max_iter=1e7, cutoff_resid=1e-9, log_iter=50, save_iter=None, tune_omega=False):
         """        
         Runs the hotplate simulation until convergence or until the maximum number of iterations is reached.
         The simulation iteratively updates the temperature array using the SOR method (or in gpu-mode SOR red-black) until the residuals
@@ -520,9 +539,6 @@ class HotPlate:
         cutoff_resid : float, optional
             Cutoff value for the residuals. The simulation stops when the mean residual is below this value.
             Default is 1e-9.    
-        T_start : str, optional
-            Path to a file containing the initial temperature array. If None, a linear temperature array is
-            generated between the hotplates. Default is None.
         log_iter : int, optional
             Interval for logging the current iteration, effective conductivity, and residual. 
             If None, no logging is done. Default is 50. 
@@ -537,13 +553,12 @@ class HotPlate:
         self.omega = omega
         self.max_iter = max_iter
         self.cutoff_resid = cutoff_resid
-        self.T_start = self.xp.load(os.path.join(self.set_dir, T_start)) if T_start else self._get_T_arr_linguess()
         print("-"*70,
               f"\n{self.name = }"
               "\nsetting up the RN simulation ...")
         t_start = time.time() 
         self._get_calc_arr()
-        self.T_arr = self.T_start                
+        self.T_arr = self.T_start.copy()
         self.iteration = 0
         self.iterations, self.residuals, self.kappas_sim = [], [], []
         print('approximating the steady state ...')    
@@ -556,15 +571,17 @@ class HotPlate:
                 self._store_data(self.name, tag='act')
             if self.residuals[-1] < self.cutoff_resid or self.iteration == self.max_iter:
                 if self.iteration == self.max_iter:
-                    warnings.warn(f"Maximum number of iterations ({self.max_iter}) reached without convergence below {self.cutoff_resid}.")
+                    warnings.warn(
+                        f"maximum number of iterations ({self.max_iter}) reached without convergence "
+                        f"(final residual: {self.residuals[-1]:.2e} ==> {self.cutoff_resid:.2e}).")                                
                 self._store_data(self.name, tag='final', save_residual_plot=True)                
                 print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)')
                 break 
             self.iteration += 1 
             if self.use_gpu:
-                self._update_SOR_redblack(omega)
+                self._update_SOR_redblack(self.omega)
             elif not self.use_gpu:
-                self._update_SOR(omega)            
+                self._update_SOR(self.omega)            
                     
                     
         

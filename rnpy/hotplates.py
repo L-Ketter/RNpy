@@ -52,28 +52,75 @@ def _get_T_new_SOR(T_arr, omega, ks):
 
 
 class HotPlate:    
+    """Class for simulating conduction in a 3D voxel structure.
     
-    def __init__(self, voxel_struc, phase_conds, name='', **kwargs):
+    Parameters
+    ----------
+    voxel_struc : np.ndarray
+        3D array representing the voxel structure of the material. Must contain integer values
+        representing different phases.
+    phase_conds : list
+        List of conductivities for each phase in the voxel structure. Indexes in the list correspond to
+        the integer values in `voxel_struc`. 
+    name : str, optional
+        Nametag for the simulation. Default is an empty string.
+    dtype : data-type, optional
+        Data type for the arrays used in the simulation. Default is None, which uses the default NumPy data type.
+        Choose complex128 for simulations using complex numbers.
+    set_dir : str, optional 
+        Directory where the simulation results will be stored. Default is the current directory ('.').
+    use_gpu : bool, optional
+        If True, uses CuPy for GPU acceleration; if False, uses NumPy. Default is False.
+    mat_bounds : list of list, optional 
+        2D list (shape: [n_phases][n_phases]) of boundary resistances between materials. Default is None.
+        If provided, it must be accompanied by `int_bounds`.   
+    int_bounds : list, optional
+        List of boundary resistances between materials and hot plates. Default is None.
+        If provided, it must be accompanied by `mat_bounds`.     
+
+    Other Parameters
+    ----------------
+    T_l : float, optional
+        Temperature of the left hotplate. Default is 1.
+    T_r : float, optional
+        Temperature of the right hotplate. Default is 0.
+    Lx : float, optional
+        Length of the hotplate in the x-direction. Default is 1.  
+    
+    Raises
+    ------
+    ValueError
+        If only one of `mat_bounds` or `int_bounds` is provided without the other.
+    ImportError
+        If `use_gpu=True` but CuPy is not installed.
+    RuntimeError
+        If `use_gpu=True` but CUDA is not available.
+    """
+
+    def __init__(self, voxel_struc, phase_conds, name='', dtype=None, set_dir='.', use_gpu=False, mat_bounds=None, int_bounds=None,  **kwargs):
         self.voxel_struc = voxel_struc
         self.phase_conds = phase_conds
         self.name = name
+        self.dtype = dtype
+        self.set_dir = set_dir        
+        self._build_working_directory(self.set_dir)
+
+        self.use_gpu = use_gpu        
+        self._choose_array_backend(kwargs.get('use_gpu', False)) 
+
+        self.mat_bounds = mat_bounds
+        self.int_bounds = int_bounds
+        if (self.mat_bounds is not None) != (self.int_bounds is not None):
+            raise ValueError("To consider interfaces, both 'mat_bounds' and 'int_bounds' must be provided together. Only one was provided.")
+        elif self.mat_bounds is not None and self.int_bounds is not None:
+            self.mat_bounds = self.xp.array(self.mat_bounds, dtype=self.dtype)
+            self.int_bounds = self.xp.array(self.int_bounds, dtype=self.dtype)
+
         self.T_l = kwargs.get('T_l', 1)
         self.T_r = kwargs.get('T_r', 0)    
         self.Lx = kwargs.get('L', 1)
         self.dx = self.Lx/voxel_struc.shape[0]
-        self.dtype = kwargs.get('dtype', None)
-
-        self.set_dir = kwargs.get('set_dir', '.')
-        self._build_working_directory(self.set_dir)
-        self._choose_array_backend(kwargs.get('use_gpu', False)) 
         
-        self.mat_bounds = kwargs.get('mat_bounds', None)
-        self.int_bounds = kwargs.get('int_bounds', None)
-        if (self.mat_bounds is not None) != (self.int_bounds is not None):
-            raise ValueError("To consider interfaces, both 'mat_bounds' and 'int_bounds' must be provided together: Only one was given")
-        elif self.mat_bounds is not None and self.int_bounds is not None:
-            self.mat_bounds = self.xp.array(self.mat_bounds, dtype=self.dtype)
-            self.int_bounds = self.xp.array(self.int_bounds, dtype=self.dtype)
         self.directions = ['r','l','ba','f','t','b']
         self.arr_slices = {
             'center': (slice(1, -1), slice(1, -1), slice(1, -1)),
@@ -93,8 +140,7 @@ class HotPlate:
         ----------
         directory : str
             Path to the directory to be created.
-        """
-        
+        """        
         if not os.path.exists(directory):
             os.makedirs(directory)
     
@@ -152,23 +198,40 @@ class HotPlate:
         return kappa_arr
     
     def _get_R_interface_arr(self):
-        plate_integ = self.mat_bounds.shape[0]
-        adiabatic_integ = plate_integ + 1
-        
-        boundary_matrix = np.full((plate_integ+2, plate_integ+2), np.inf, dtype=self.dtype)
-        boundary_matrix[:plate_integ,:plate_integ] = self.mat_bounds
-        boundary_matrix[:plate_integ, plate_integ] = self.int_bounds
-        boundary_matrix[plate_integ, :plate_integ] = self.int_bounds
-        
+        """
+        Builds the interface resistance arrays. 
+        First pad integers for the plates and adiabatic boundaries to the voxel_struc.
+        Then combine `mat_bounds` and `int_bounds` into a boundary matrix as in the following example: 
+        mat_bounds = [[0, 1], [1, 0]]
+        int_bounds = [0.5, 0.5]
+        boundary_matrix = [[0     , 1     , 0.5,    np.inf], 
+                           [1     , 0     , 0.5,    np.inf], 
+                           [0.5   , 0.5   , np.inf, np.inf],
+                           [np.inf, np.inf, np.inf, np.inf]]
+        Then generate the interface resistance arrays for each direction, based on the padded voxel structure and the boundary matrix.
+
+        Returns
+        -------
+        R_ints : dict
+            Dictionary with interface resistance arrays for each direction.
+            The keys are the directions ('r', 'l', 'ba', 'f', 't', 'b') and the values are the corresponding resistance arrays.
+        """
+        plate_integ = self.voxel_struc.max() + 1
+        adiabatic_integ = self.voxel_struc.max() + 2        
         voxel_struc_w_bound_integ = self.xp.pad(self.voxel_struc,
                                 pad_width = ((1,1), (1,1), (1,1)),
                                 mode = 'constant',
                                 constant_values = ((plate_integ,plate_integ),
                                                    (adiabatic_integ,adiabatic_integ),
-                                                   (adiabatic_integ,adiabatic_integ)))        
+                                                   (adiabatic_integ,adiabatic_integ)))          
         
+        boundary_matrix = np.full((plate_integ+2, plate_integ+2), np.inf, dtype=self.dtype)
+        boundary_matrix[:plate_integ,:plate_integ] = self.mat_bounds
+        boundary_matrix[:plate_integ, plate_integ] = self.int_bounds
+        boundary_matrix[plate_integ, :plate_integ] = self.int_bounds
+
+        R_ints = {}        
         integ_center = voxel_struc_w_bound_integ[self.arr_slices['center']]
-        R_ints = {}
         for direction in self.directions:
             integ_neighbor = voxel_struc_w_bound_integ[self.arr_slices[direction]]
             interface_arr = boundary_matrix[integ_center, integ_neighbor] 
@@ -176,11 +239,38 @@ class HotPlate:
         return R_ints
             
     def _get_calc_arr(self):
+        """
+        Builds the conductivity arrays for the hotplate simulation.
+        If `mat_bounds` and `int_bounds` are provided, the interface resistances are calculated 
+        using the _get_R_interface_arr method and used in the bond conductivity calculation. 
+        For each spacial direction, the bond conductivities are calculated using the internal _calc_bond_cond method. 
+        Then the sum of all bond conductivities is calculated and stored in `ksum_arr`.
+        The conductivities in each direction, relative to `ksum_arr`, are stored in `k{direction}_rel_arr` attributes.
+        """
+
         if self.mat_bounds is not None and self.int_bounds is not None:
             R_ints = self._get_R_interface_arr()
         
         kappa_arr = self._get_kappa_arr()
-        def calc_bond_cond(k_spot, k_neighbor, R_int=None):
+        def _calc_bond_cond(k_spot, k_neighbor, R_int=None):
+            """
+            Calculates the bond conductivities between two neighboring voxels.
+
+            Parameters
+            ----------
+            k_spot : xp.ndarray
+                Conductivities of the central voxels.
+            k_neighbor : xp.ndarray
+                Conductivities of the neighboring voxels.
+            R_int : xp.ndarray, optional
+                Interface resistances between the voxels. 
+            
+            Returns
+            -------
+            k_link : xp.ndarray
+                Conductivities of the bonds between the voxels.
+            """
+
             zero_mask = (k_spot == 0) | (k_neighbor == 0) | (R_int == np.inf)           
             other_mask = ~(zero_mask)            
             k_link = self.xp.zeros(k_spot.shape, dtype=self.dtype)
@@ -195,9 +285,9 @@ class HotPlate:
         for direction in self.directions:
             k_neighbor = kappa_arr[self.arr_slices[direction]]
             if self.mat_bounds is not None and self.int_bounds is not None:
-                k_arrs[direction] = calc_bond_cond(k_spot,k_neighbor,R_ints[direction])
+                k_arrs[direction] = _calc_bond_cond(k_spot,k_neighbor,R_ints[direction])
             else:                
-                k_arrs[direction] = calc_bond_cond(k_spot,k_neighbor)
+                k_arrs[direction] = _calc_bond_cond(k_spot,k_neighbor)
         
         self.ksum_arr = np.zeros(self.voxel_struc.shape, dtype=self.dtype)
         for direc in self.directions:
@@ -337,9 +427,18 @@ class HotPlate:
         kappa = - mean_Q_lr*x_len / (self.T_r-self.T_l)
         return kappa
 
-    def _store_data(self, name, iterations, residuals=None, kappas=None, T_arr=None, save_residual_plot=False, remove_act_files = True, tag='act'):        
+    def _store_data(self, name, iterations, residuals=None, kappas=None, T_arr=None, save_residual_plot=False, remove_act_files=True, tag='act'):  
+        """
+        Stores the simulation data in the specified directory.
+
+        Parameters
+        ----------
+        name : str
+            Name of the simulation. Used to create the filename for storing the data.
+        
+        """      
         if remove_act_files:
-            self._remove_act_files(name) 
+            self._remove_act_files(tag='act') 
         if kappas is not None:
             utils.store_x_and_y_data(np.array(iterations), np.array(kappas), 'iteration','kappa_sim',
                                      name=os.path.join(self.set_dir, f'{name}_iter_{iterations[-1]}_{tag}kappa_{kappas[-1]:.5f}'))
@@ -353,9 +452,18 @@ class HotPlate:
         if T_arr is not None:
             self.xp.save(os.path.join(self.set_dir, f'{name}_iter_{iterations[-1]}_{tag}Tarr.npy'), self.T_arr)
 
-    def _remove_act_files(self, name):
+    def _remove_act_files(self, tag='act'):
+        """
+        Removes all files in the set directory that contain the specified tag.
+
+        Parameters
+        ----------
+        tag : str
+            Tag to search for in the filenames. Files containing this tag will be removed.
+        """"
+
         for filename in os.listdir(self.set_dir):
-            if '_act' in filename and name in filename:
+            if tag in filename and name in filename:
                 os.remove(os.path.join(self.set_dir, filename))
 
         
@@ -410,7 +518,7 @@ class HotPlate:
 
             iteration += 1 
             #self._update_SOR(omega)
-            self._update_SOR_redblack(omega) # updating all temperatures using the SOR method              \n
+            self._update_SOR_redblack(omega) # updating all temperatures using the SOR method              
                     
                     
         

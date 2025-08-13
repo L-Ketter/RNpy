@@ -10,7 +10,7 @@ A python tool for running resistor network simulations based on voxel structures
 - pyevtk
 - CuPy
 
-## Installation
+## Installation & Updates
 1) Create a conda environment and activate it
 ```bash
 conda create env -n rnpy
@@ -24,6 +24,10 @@ conda config --set channel_priority strict
 3) Install `RNpy` using the following command:
 ```bash
 conda install -c l-ketter rnpy
+```
+To update rnpy to the newest version run
+```bash
+conda update rnpy -c l-ketter
 ```
 ## How to cite?
 

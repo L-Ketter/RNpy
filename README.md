@@ -16,7 +16,7 @@ A python tool for running resistor network simulations based on voxel structures
 conda env -n rnpy
 conda activate rnpy
 ```
-Configure conda to use conda-forge
+Configure conda to give `conda-forge` the highest priority
 ```bash
 conda config --add channels conda-forge
 conda config --set channel_priority strict

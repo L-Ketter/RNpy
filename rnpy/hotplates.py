@@ -123,10 +123,8 @@ class HotPlate:
         
         self.T_l = kwargs.get('T_l', 1)
         self.T_r = kwargs.get('T_r', 0)    
-        self.Lx = kwargs.get('L', 1)
+        self.Lx = kwargs.get('Lx', 1)
         self.dx = self.Lx/voxel_struc.shape[0]
-        
-        self.T_start = self.xp.load(os.path.join(self.set_dir, T_start)) if T_start else self._get_T_arr_linguess()
         
         self.directions = ['r','l','ba','f','t','b']
         self.arr_slices = {
@@ -138,6 +136,10 @@ class HotPlate:
             't': (slice(1, -1), slice(1, -1), slice(2, None)),
             'b': (slice(1, -1), slice(1, -1), slice(None, -2))
         }
+
+        self._get_calc_arr() # build conductivity arrays in all directions and the summed conductivities
+        self.T_start = self._get_T_start(T_start)
+        
     
     def _build_working_directory(self, directory):
         """
@@ -242,6 +244,30 @@ class HotPlate:
             R_ints[direction] = self.xp.asarray(interface_arr)       
         return R_ints
             
+    def _get_T_start(self, T_start_center): 
+        """
+        Initializes the temperature array with a linear temperature distribution between the hotplates.
+        If `T_start_center` is provided, it loads the initial temperature array from the specified file.
+        It sets all temperatures for nodes with 0 conductivity in all directions to 0.
+
+        Parameters
+        ----------
+        T_start_center : str, optional
+               Path to a file containing the initial temperature array. If None, a linear temperature array is generated.
+        
+        Returns
+        -------
+        T_start : xp.ndarray
+            3D array of initial temperatures.
+        """       
+
+        T_start = self._get_T_arr_linguess()
+        if T_start_center:
+            T_start[self.arr_slices['center']] = self.xp.load(os.path.join(self.set_dir, T_start_center))  
+        kappa_arr = self._get_kappa_arr()
+        T_start[kappa_arr == 0] = 0
+        return T_start 
+        
     def _get_calc_arr(self):
         """
         Builds the conductivity arrays for the hotplate simulation.
@@ -431,7 +457,31 @@ class HotPlate:
         kappa = - mean_Q_lr*x_len / (self.T_r-self.T_l)
         return kappa
 
-    def _store_data(self, name, tag, save_residual_plot=False, remove_act_files=True):  
+    def _get_jloc(self):
+        """
+        Note: When jloc is calculated with default values (dT=-1, Lx=1) it might need to be rescaled. 
+        To get the real jloc for your system, multiply it with dT_real/Lx_real. Often it is sufficient 
+        to just show normalized jloc. In such cases, simply divide jloc by its maximum entry.
+        ------------------------------------------------------------------------------
+        Builds an array storing the local flux densities going through each node. 
+        The calculation assumes steady state conditions (flux into a node equals flux out of a node).
+        1) Add the sums of all flux terms (note: relative conductivities are used) in each direction.
+        2) Multiply with the sum of all conductivities in each direction (to get real fluxes) 
+        and divide by the distance between neighboring nodes to get real current densities.
+        3) Due to steady state conditions, half of the calculated sum of absolute fluxes
+        is going into the node and half is going out of the node. As we are interested in the local current density,
+        going through the node, we divide by 2. 
+        """
+
+        jloc_term_sum = self.xp.zeros(self.voxel_struc.shape, dtype=self.dtype)
+        for direc in self.directions:
+            jloc_term_sum += np.abs(
+                getattr(self, f'k{direc}_rel_arr') 
+                * (self.T_arr[self.arr_slices[direc]] - self.T_arr[self.arr_slices['center']])
+                )
+        self.jloc = jloc_term_sum * self.ksum_arr/(self.dx * 2) 
+        
+    def _store_data(self, tag, save_residual_plot=False, remove_act_files=True):  
         """
         Stores the simulation data (conductivities, residuals, Temperature array) in the specified directory
         and removes files with the 'act' tag if specified.
@@ -443,22 +493,28 @@ class HotPlate:
         tag : str
             Tag should be "act" or "final" and is used to differentiate between different states of the simulation.
         """      
+        
         if remove_act_files:
-            self._remove_files(name, tag='act') 
+            self._remove_files(tag='act') 
         if self.kappas_sim is not None:
             utils.store_x_and_y_data(np.array(self.iterations), np.array(self.kappas_sim), 'iteration','kappa_sim',
-                                     name=os.path.join(self.set_dir, f'{name}_iter_{self.iterations[-1]}_{tag}kappa_{self.kappas_sim[-1]:.5f}'))
+                                     name=os.path.join(self.set_dir, f'{self.name}_iter_{self.iterations[-1]}_{tag}kappa_{self.kappas_sim[-1]:.5f}'))
         if self.residuals is not None:
             utils.store_x_and_y_data(np.array(self.iterations), np.array(self.residuals), 'iteration', 'residual',
-                                     name=os.path.join(self.set_dir, f'{name}_iter_{self.iterations[-1]}_{tag}resid_{self.residuals[-1]:.2e}')) 
+                                     name=os.path.join(self.set_dir, f'{self.name}_iter_{self.iterations[-1]}_{tag}resid_{self.residuals[-1]:.2e}')) 
             if save_residual_plot:
                 utils.makelogplot(np.array(self.iterations), np.array(self.residuals), 'iteration', 'residual / K',
                                 xscale='lin', yscale='log', save=True, show=False,
-                                name=os.path.join(self.set_dir, f'{name}_residuals_{tag}')) 
+                                name=os.path.join(self.set_dir, f'{self.name}_residuals_{tag}')) 
+                
         if self.T_arr is not None:
-            self.xp.save(os.path.join(self.set_dir, f'{name}_iter_{self.iterations[-1]}_{tag}Tarr.npy'), self.T_arr)
+            self.xp.save(os.path.join(self.set_dir, f'{self.name}_iter_{self.iterations[-1]}_{tag}Tarr.npy'), self.T_arr[self.arr_slices['center']])
+        
+        self._get_jloc()
+        if self.jloc is not None:
+            self.xp.save(os.path.join(self.set_dir, f'{self.name}_iter_{self.iterations[-1]}_{tag}jloc.npy'), self.jloc)
 
-    def _remove_files(self, name, tag='act'):
+    def _remove_files(self, tag='act'):
         """
         Removes all files in the set directory that contain the specified tag.
 
@@ -469,7 +525,7 @@ class HotPlate:
         """
 
         for filename in os.listdir(self.set_dir):
-            if tag in filename and name in filename:
+            if tag in filename and self.name in filename:
                 os.remove(os.path.join(self.set_dir, filename))
     
     def _to_cpu(self, val):
@@ -520,7 +576,7 @@ class HotPlate:
             self.iteration, self.iterations, self.residuals, self.kappas_sim = 0, [], [], []
             self._update_lists(print_output=True)
 
-    def run(self, omega=1.979, max_iter=1e7, cutoff_resid=1e-9, log_iter=50, save_iter=None, tune_omega=False):
+    def run(self, omega=1.979, max_iter=1e7, cutoff_resid=1e-9, log_iter=50, save_iter=None, tune_omega=False, get_voxelstruc=True):
         """        
         Runs the hotplate simulation until convergence or until the maximum number of iterations is reached.
         The simulation iteratively updates the temperature array using the SOR method (or in gpu-mode SOR red-black) until the residuals
@@ -548,8 +604,11 @@ class HotPlate:
         tune_omega : bool, optional    
             If True, tunes the omega parameter based on the convergence behavior of the residuals.
             If False, uses the specified omega value throughout the simulation. Default is False.
+        get_voxelstruc: bool, optional
+            If True, saves the voxelstruc as .npy in the specified directory
         """
-
+        if get_voxelstruc == True:
+            self.xp.save(os.path.join(self.set_dir, f'{self.name}_voxelstruc.npy'), self.voxel_struc)
         self.omega = omega
         self.max_iter = max_iter
         self.cutoff_resid = cutoff_resid
@@ -557,7 +616,6 @@ class HotPlate:
               f"\n{self.name = }"
               "\nsetting up the RN simulation ...")
         t_start = time.time() 
-        self._get_calc_arr()
         self.T_arr = self.T_start.copy()
         self.iteration = 0
         self.iterations, self.residuals, self.kappas_sim = [], [], []
@@ -568,15 +626,16 @@ class HotPlate:
                 if tune_omega:
                     self._tune_omega() 
             if save_iter is not None and self.residuals[-1] > self.cutoff_resid and self.iteration % save_iter == 0:
-                self._store_data(self.name, tag='act')
+                self._store_data(tag='act')
             if self.residuals[-1] < self.cutoff_resid or self.iteration == self.max_iter:
                 if self.iteration == self.max_iter:
                     warnings.warn(
                         f"maximum number of iterations ({self.max_iter}) reached without convergence "
-                        f"(final residual: {self.residuals[-1]:.2e} ==> {self.cutoff_resid:.2e}).")                                
-                self._store_data(self.name, tag='final', save_residual_plot=True)                
+                        f"(final residual: {self.residuals[-1]:.2e} ==> {self.cutoff_resid:.2e}).") 
+                self._store_data(tag='final', save_residual_plot=True)                
                 print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)')
                 break 
+
             self.iteration += 1 
             if self.use_gpu:
                 self._update_SOR_redblack(self.omega)

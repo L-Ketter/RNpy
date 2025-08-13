@@ -16,7 +16,7 @@ def store_x_and_y_data(x, y, x_name, y_name, name=''):
     """
 
     header = f"{x_name}\t{y_name}"
-    with open(f"{name}.dat", "w") as f:
+    with open(f"{name}.txt", "w") as f:
         f.write(header + "\n")
         for i in range(len(x)):
             f.write(f"{x[i]}\t{y[i]}\n")
@@ -74,7 +74,7 @@ def makelogplot(x, y, xlabel, ylabel, xscale='lin', yscale='lin', show=True, sav
     ax.set_aspect((xmax_asp-xmin_asp)/(ymax_asp-ymin_asp))              
     ax.tick_params(axis="both", labelsize=7, direction='out', which='both')            
     if save is True:
-        fig.savefig(f'{name}.pdf')
+        fig.savefig(f'{name}.pdf', bbox_inches='tight')
     if show is True:
         plt.show()
     plt.close(fig)

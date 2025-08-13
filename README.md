@@ -27,7 +27,7 @@ conda install -c l-ketter rnpy
 ```
 4) To update rnpy to the newest version run
 ```bash
-conda update rnpy -c l-ketter
+conda update -c l-ketter rnpy 
 ```
 ## How to cite?
 

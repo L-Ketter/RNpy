@@ -11,13 +11,20 @@ A python tool for running resistor network simulations based on voxel structures
 - CuPy
 
 ## Installation
-
-You can install `RNpy` using conda with the following command:
-
+1) Build a conda environment and activate it
+```bash
+conda env -n rnpy
+conda activate rnpy
+```
+Configure conda to use conda-forge
+```bash
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+```
+You can then install `RNpy` using conda with the following command:
 ```bash
 conda install -c l-ketter rnpy
 ```
-
 ## How to cite?
 
 If you use `RNpy` in your published work, please cite the publication below:

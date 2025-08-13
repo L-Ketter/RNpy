@@ -25,7 +25,7 @@ conda config --set channel_priority strict
 ```bash
 conda install -c l-ketter rnpy
 ```
-To update rnpy to the newest version run
+4) To update rnpy to the newest version run
 ```bash
 conda update rnpy -c l-ketter
 ```

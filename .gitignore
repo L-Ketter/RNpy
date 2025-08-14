@@ -1,3 +1,4 @@
 # Ignore conda build recipe folder
-conda/
+_conda/
 _test/
+figures/_fig_repo/

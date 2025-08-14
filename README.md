@@ -13,7 +13,7 @@ A python tool for running resistor network simulations based on voxel structures
 ## Installation & Updates
 1) Create a conda environment and activate it
 ```bash
-conda create env -n rnpy
+conda create -n rnpy
 conda activate rnpy
 ```
 2) Configure conda to give `conda-forge` the highest priority
@@ -25,9 +25,9 @@ conda config --set channel_priority strict
 ```bash
 conda install -c l-ketter rnpy
 ```
-To update rnpy to the newest version run
+4) To update `RNpy` to the newest version run
 ```bash
-conda update rnpy -c l-ketter
+conda update -c l-ketter rnpy 
 ```
 ## How to cite?
 

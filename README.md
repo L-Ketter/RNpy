@@ -13,7 +13,7 @@ A python tool for running resistor network simulations based on voxel structures
 ## Installation & Updates
 1) Create a conda environment and activate it
 ```bash
-conda create env -n rnpy
+conda create -n rnpy
 conda activate rnpy
 ```
 2) Configure conda to give `conda-forge` the highest priority

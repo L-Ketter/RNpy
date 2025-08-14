@@ -2,12 +2,6 @@
 
 A python tool for running resistor network simulations based on voxel structures
 
-## Example results
-<p align="center">
-  <img src="figures/fig1.png">
-</p>
-
-
 ## System requirements
 
 - NumPy 

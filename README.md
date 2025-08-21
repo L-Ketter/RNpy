@@ -8,7 +8,6 @@ A python tool for running resistor network simulations based on voxel structures
 </p>
 
 ## System requirements
-
 - NumPy 
 - Matplotlib 
 - Numba
@@ -21,27 +20,21 @@ A python tool for running resistor network simulations based on voxel structures
 conda create -n rnpy
 conda activate rnpy
 ```
-2) Configure conda to give `conda-forge` the highest priority
+2) Install `RNpy` using the following command:
 ```bash
-conda config --add channels conda-forge
-conda config --set channel_priority strict
+conda install -c conda-forge -c l-ketter rnpy
 ```
-3) Install `RNpy` using the following command:
+3) To update `RNpy` to the newest version run
 ```bash
-conda install -c l-ketter rnpy
+conda update -c conda-forge -c l-ketter rnpy
 ```
-4) To update `RNpy` to the newest version run
-```bash
-conda update -c l-ketter rnpy 
-```
-## How to cite?
 
+## How to cite?
 If you use `RNpy` in your published work, please cite the publication below:
 
 Ketter, L., Greb, N., Bernges, T., Zeier, W. G., Using resistor network models to predict the transport properties of solid-state battery composites. *Nat. Commun.* **16**, 1411 (2025). https://doi.org/10.1038/s41467-025-56514-5
 
 ## Example usage
-
 In the first step, we will create a 3D microstructure using the `blobs3D` function from the `composites` module. The function generates a cubic microstructure, whereby the overall edge length in voxels is controlled by the `size` parameter. Voxel clusters, each containing a number of `sclust`voxels are inserted into a continuous medium until a volume fraction of `disp_volfrac` (volume fraction in %) is reached. The resulting NumPy array consists of 0s and 1s as entries, where 0s represent the continuous phase and 1s represents the dispersed phase.
 
 **Note:**

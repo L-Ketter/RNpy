@@ -22,11 +22,11 @@ conda activate rnpy
 ```
 2) Install `RNpy` using the following command:
 ```bash
-conda install -c conda-forge -c l-ketter rnpy
+conda install -c l-ketter rnpy -c conda-forge
 ```
 3) To update `RNpy` to the newest version run
 ```bash
-conda update -c conda-forge -c l-ketter rnpy
+conda update -c l-ketter rnpy -c conda-forge
 ```
 
 ## How to cite?

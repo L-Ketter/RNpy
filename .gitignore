@@ -1,4 +1,5 @@
-# Ignore conda build recipe folder
 _conda/
 _test/
 figures/_fig_repo/
+*.docx
+setup.py

@@ -36,7 +36,7 @@ def _get_T_new_SOR(T_arr, omega, ks):
     nx, ny, nz = T_arr.shape
     for i in range(1, nx-1):
         for j in range(1, ny-1):
-            for k in range(1, nz-1):                
+            for k in range(1, nz-1): 
                 T_new = (
                     T_arr[i+1, j, k] * kr_rel[i-1, j-1, k-1]
                     + T_arr[i-1, j, k] * kl_rel[i-1, j-1, k-1] 
@@ -303,20 +303,25 @@ class HotPlate:
         
         k_spot = kappa_arr[self.arr_slices['center']]  
         k_arrs = {}              
-        for direction in self.directions:
-            k_neighbor = kappa_arr[self.arr_slices[direction]]
+        for direc in self.directions:
+            k_neighbor = kappa_arr[self.arr_slices[direc]]
             if self.mat_bounds is not None and self.int_bounds is not None:
-                k_arrs[direction] = _calc_bond_cond(k_spot,k_neighbor,R_ints[direction])
+                k_arrs[direc] = _calc_bond_cond(k_spot,k_neighbor,R_ints[direc])
             else:                
-                k_arrs[direction] = _calc_bond_cond(k_spot,k_neighbor)
+                k_arrs[direc] = _calc_bond_cond(k_spot,k_neighbor)
         
-        self.ksum_arr = self.xp.zeros(self.voxel_struc.shape, dtype=self.dtype)
+        self.ksum_arr = self.xp.sum(list(k_arrs.values()), axis=0)         
+        k_rel_arrs = {
+            direc: self.xp.divide( 
+                k_arrs[direc],
+                self.ksum_arr,
+                out=self.xp.zeros_like(k_arrs[direc], dtype=self.dtype),
+                where=self.ksum_arr!=0
+                ) # use xp.divide to avoid division by zero
+            for direc in self.directions            
+        }        
         for direc in self.directions:
-            self.ksum_arr += k_arrs[direc]
-        self.ksum_arr[self.ksum_arr == 0] = 1e-100 # replace zero with a small number to avoid division with zero
-                
-        for direc in self.directions:
-            setattr(self, f'k{direc}_rel_arr', k_arrs[direc]/self.ksum_arr)
+            setattr(self, f'k{direc}_rel_arr', k_rel_arrs[direc])
         
     def _get_T_arr_linguess(self):
         """
@@ -422,10 +427,8 @@ class HotPlate:
                            large values -> faster convergence
         """
         T_arr = self.T_arr
-        ks = []
-        for direc in self.directions:
-            ks.append(getattr(self, f'k{direc}_rel_arr'))                    
-        self.T_arr = _get_T_new_SOR(T_arr, omega, tuple(ks))
+        ks = tuple(getattr(self, f'k{direc}_rel_arr') for direc in self.directions)
+        self.T_arr = _get_T_new_SOR(T_arr, omega, ks)
 
     def _get_residuals(self):
         """

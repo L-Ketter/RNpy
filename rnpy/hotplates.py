@@ -257,8 +257,9 @@ class HotPlate:
         T_start = self._get_T_arr_linguess()
         if T_start_center:
             T_start[self.arr_slices['center']] = self.xp.load(os.path.join(self.set_dir, T_start_center))  
-        kappa_arr = self._get_kappa_arr()
-        T_start[kappa_arr == 0] = 0
+        T_zero_mask = (self._get_kappa_arr() == 0)
+        T_zero_mask[self.arr_slices['center']] = (self.ksum_arr==0)
+        T_start[T_zero_mask] = 0
         return T_start 
         
     def _get_calc_arr(self):

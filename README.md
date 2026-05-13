@@ -2,26 +2,37 @@
 
 A python tool for running resistor network simulations based on voxel structures
 
-## System requirements
+## Example results
+<p align="center">
+  <img src="figures/fig_1.png"/>
+</p>
 
+## System requirements
 - NumPy
 - Matplotlib
 - Numba
 - pyevtk
+- CuPy
 
-## Installation
-
-You can install `RNpy` using conda with the following command:
-
+## Installation & Updates
+1) Create a conda environment and activate it
 ```bash
-conda install rnpy
+conda create -n rnpy
+conda activate rnpy
+```
+2) Install `RNpy` using the following command:
+```bash
+conda install -c l-ketter rnpy -c conda-forge
+```
+3) To update `RNpy` to the newest version run
+```bash
+conda update -c l-ketter rnpy -c conda-forge
 ```
 
 ## How to cite?
-
 If you use `RNpy` in your published work, please cite the publication below:
 
-Ketter, L.; Greb, N.; Bernges, T.; Zeier, W. G. Using resistor network models to predict the transport properties of solid-state battery composites. *Nat. Commun.* **16**, 1411 (2025). https://doi.org/10.1038/s41467-025-56514-5
+Ketter, L., Greb, N., Bernges, T., Zeier, W. G., Using resistor network models to predict the transport properties of solid-state battery composites. *Nat. Commun.* **16**, 1411 (2025). https://doi.org/10.1038/s41467-025-56514-5
 
 ## Example usage
 

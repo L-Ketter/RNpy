@@ -1,9 +1,21 @@
-import numpy as np
 import os
+import numpy as np
 import pandas as pd
 from pyevtk.hl import imageToVTK
 
 def store_data(data, names, dir_path=os.getcwd()):
+    """
+    Stores data in the specified directory. The data can be numpy arrays or dictionaries.
+
+    Parameters
+    ----------
+    data : list
+        A list of data objects to be stored. Each object can be a numpy array or a dictionary.
+    names : list
+        A list of names for the data objects to be stored. The suffix of the name will determine the file format (e.g., '.npy' for numpy arrays, '.csv' for dictionaries, '.vti' for VTI files).
+    dir_path : str, optional
+        The path to the directory where the data will be stored. If not provided, the current working directory will be used.
+    """
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
@@ -13,8 +25,10 @@ def store_data(data, names, dir_path=os.getcwd()):
                 np.save(os.path.join(dir_path, name[:-4]), obj)
             elif name.endswith('.vti'):
                 get_vti(obj, name=os.path.join(dir_path, name[:-4]))
-        if isinstance(obj, dict):
-            pd.DataFrame(obj).to_csv(os.path.join(dir_path, f"{name}"), index=False)
+        elif isinstance(obj, dict):
+            pd.DataFrame(obj).to_csv(
+                os.path.join(dir_path, f"{name}"), index=False
+            )
 
 def get_vti(array, name='output'):
     """
@@ -31,18 +45,18 @@ def get_vti(array, name='output'):
 
 def format_seconds(seconds):
     """
-    Formats seconds into a string of the form 'hh:mm:ss'.
+    Format seconds into a string of the form 'hh:mm:ss'.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     seconds : int
-        the number of seconds to format.
+        The number of seconds to format.
 
-    Returns:
-    --------
-    a string representing the time in hours, minutes, and seconds.
+    Returns
+    -------
+    str
+        A string representing the time in hours, minutes, and seconds.
     """
-
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     seconds = int(seconds % 60)

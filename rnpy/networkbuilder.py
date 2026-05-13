@@ -3,6 +3,10 @@ import numpy as np
 from .network import Network
 
 class BuildContext():
+    """
+    The BuildContext class is a simple data container that holds all the parameters
+    and intermediate variables needed during the building of the Network object.
+    """
     def __init__(self,
                  voxel_struc,
                  phase_conds,
@@ -21,7 +25,7 @@ class BuildContext():
         self.int_bounds = int_bounds
         self.mat_bounds = mat_bounds
 
-        self.u_start_center = u_start # absolute path to the initial temperature array file
+        self.u_start_center = u_start # absolute path to the initial potential array file
         self.u_x0 = kwargs.get('u_x0', 1)
         self.u_xN = kwargs.get('u_xN', 0)
         self.L_x = kwargs.get('L_x', 1)
@@ -51,6 +55,13 @@ class BuildContext():
             )
 
 class NetworkBuilder:
+    """
+    The NetworkBuilder class is responsible for constructing a Network object
+    based on the provided voxel structure, phase conductivities, and other parameters.
+    The build method takes in the necessary parameters, creates a BuildContext object,
+    and then generates the conductivity arrays and initial potential array to create
+    the Network object.
+    """
     k_gen_slices = {
             'x_0': (slice(None, -1), slice(1, -1), slice(1, -1)),
             'x_1': (slice(1, None), slice(1, -1), slice(1, -1)),
@@ -106,13 +117,15 @@ class NetworkBuilder:
         -------
         k_sum_arr : xp.ndarray
             3D array of the sum of bond conductivities for each voxel.
+        k_sum_arr_inv : xp.ndarray
+            3D array of the inverse of the sum of bond conductivities for each voxel.
         k_dir_arrs : dict
             Dictionary with bond conductivity arrays along each axis.
         """
-
         def _calc_bond_cond(k_pos0, k_pos1, R_int=None):
             """
-            Calculates the bond conductivities between two neighboring voxels.
+            Calculates the bond conductivities between two neighboring voxels according
+            to the series model.
 
             Parameters
             ----------
@@ -129,18 +142,18 @@ class NetworkBuilder:
                 Conductivities of the bonds between the voxels.
             """
             zero_mask = (k_pos0 == 0) | (k_pos1 == 0) | (R_int == float('inf'))
-            inf_mask = (k_pos0 == float('inf')) & (k_pos1 == float('inf'))
             other_mask = ~(zero_mask) & ~(inf_mask)
-
+            del zero_mask
+            inf_mask = (k_pos0 == float('inf')) & (k_pos1 == float('inf'))
+            del inf_mask
             k_link = self.ctx.xp.zeros(k_pos0.shape, dtype=self.ctx.dtype)
             k_link[inf_mask] = float('inf')
-
             k_series_inv = 0.5*(1/k_pos0[other_mask] + 1/k_pos1[other_mask])
             if R_int is not None:
                 k_link[other_mask] = (k_series_inv + R_int[other_mask]/self.ctx.dx)**-1
             else:
                 k_link[other_mask] = (k_series_inv)**-1
-            del zero_mask, inf_mask, other_mask
+            del other_mask, k_series_inv
             return k_link
 
         k_dir_arrs = {}
@@ -169,7 +182,6 @@ class NetworkBuilder:
     def _get_R_int_arrs(self):
         """
         Builds the interface resistance arrays
-        (on the cpu, and later shuttles it on the gpu if needed)
         First pad integers for the plates and
         adiabatic boundaries to the voxel_struc.
         Then combine `mat_bounds` and `int_bounds` into
@@ -191,7 +203,7 @@ class NetworkBuilder:
             The keys are the different axes ('x', 'y', 'z')
             and the values are the corresponding resistance arrays.
         """
-        plate_integ = self.ctx.voxel_struc.max()+ 1
+        plate_integ = self.ctx.voxel_struc.max() + 1
         adiabatic_integ = self.ctx.voxel_struc.max() + 2
         voxel_struc_w_bound_integ = self.ctx.xp.pad(
             self.ctx.voxel_struc,
@@ -203,7 +215,6 @@ class NetworkBuilder:
                 (adiabatic_integ,adiabatic_integ)
             )
         )
-
         boundary_matrix = self.ctx.xp.full((plate_integ+2, plate_integ+2), self.ctx.xp.inf, dtype=self.ctx.dtype)
         boundary_matrix[:plate_integ, :plate_integ] = self.ctx.mat_bounds
         boundary_matrix[:plate_integ, plate_integ] = self.ctx.int_bounds
@@ -215,15 +226,16 @@ class NetworkBuilder:
             integ_pos1 = voxel_struc_w_bound_integ[self.k_gen_slices[f'{ax}_1']]
             interface_arr = boundary_matrix[integ_pos0, integ_pos1]
             R_ints[ax] = self.ctx.xp.asarray(interface_arr)
+        del voxel_struc_w_bound_integ, boundary_matrix
         return R_ints
 
     def _get_u_start(self, k_sum_arr):
         """
-        Initializes the temperature array with a
-        linear temperature distribution between the hotplates.
-        If `T_start_center` is provided, it loads the initial temperature
+        Initializes the solution array with a
+        linear distribution between the boundaries.
+        If `u_start_center` is provided, it loads the initial solution
         array from the specified file.
-        It sets all temperatures for nodes with 0 conductivity in all directions to 0.
+        It sets all solutions for nodes with 0 conductivity in all directions to 0.
 
         Parameters
         ----------
@@ -232,22 +244,22 @@ class NetworkBuilder:
 
         Returns
         -------
-        T_start : xp.ndarray
-            3D array of initial temperatures.
+        u_start : xp.ndarray
+            3D array of initial solutions.
         """
 
         def _get_linguess():
             """
-            Builds an initial temperature array with linearly de- or increasing
-            temperatures between the hotplates
+            Builds an initial solution array with linearly de- or increasing
+            solutions between the boundaries
 
             Returns
             -------
-            T_start : xp.ndarray
-                3D array of temperatures.
-                - the temperature entries are linearly de- or increasing
-                from `T_l`, the temperature of the left hotplate
-                to `T_r`, the temperature of the right hotplate.
+            u_start : xp.ndarray
+                3D array of solutions.
+                - the solution entries are linearly de- or increasing
+                from `u_x0`, the solution at the left boundary
+                to `u_xN`, the solution at the right boundary.
             """
             nx, ny, nz = [dim+2 for dim in self.ctx.voxel_struc.shape] # size of voxelstruc + boundaries
             u_start = self.ctx.xp.zeros((nx, ny, nz), dtype=self.ctx.dtype)
@@ -277,7 +289,40 @@ class NetworkBuilder:
             L_x=1,
             **kwargs
         ):
+        """
+        Main mehthod of the NetworkBuilder class that builds the Network object based on the provided parameters.
 
+        Parameters
+        ----------
+        voxel_struc : np.ndarray
+            A 3D NumPy array representing the voxel structure of the material.
+        phase_conds : list
+            A list of conductivities corresponding to each phase in the voxel structure.
+            The index of the conductivity in the list should match the phase index in the voxel_struc.
+        dtype : data-type, optional
+            The desired data-type for the arrays of the network object. Default is np.float64.
+        use_gpu : bool, optional
+            Determines whether a numpy or CuPy backend will be used for array operations. Default is False (numpy).
+        int_bounds : list, optional
+            A list of interface resistances between the phases. The length of the list should match the number of phases. Default is None (no interface resistances).
+        mat_bounds : list of lists, optional
+            A square matrix of material bounds for each phase. The dimensions of the matrix should match the
+            number of phases. Default is None (no material bounds).
+        u_start : str, optional
+            An absolute path to a .npy file containing the initial solution array for the simulation.
+            If not provided, the initial solution array will be generated with a linear distribution between the boundaries. Default is None.
+        u_x0 : float, optional
+            The solution at the left boundary. Default is 1.
+        u_xN : float, optional
+            The solution at the right boundary. Default is 0.
+        L_x : float, optional
+            The length of the system in the x direction. Default is 1.
+
+        Returns
+        -------
+        nw : Network
+            A Network object initialized with the generated conductivity arrays and initial solution array.
+        """
         self.ctx = BuildContext(
             voxel_struc=voxel_struc,
             phase_conds=phase_conds,
@@ -294,7 +339,6 @@ class NetworkBuilder:
 
         k_raw_arr = self._get_k_raw_arr()
         R_ints = self._get_R_int_arrs() if self.ctx.mat_bounds is not None else None
-
         k_sum_arr, k_sum_arr_inv, k_dir_arrs = self._get_k_arrs(k_raw_arr, R_ints=R_ints)
         del R_ints, k_raw_arr
         u_start = self._get_u_start(k_sum_arr)

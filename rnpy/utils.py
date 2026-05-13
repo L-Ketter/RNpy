@@ -1,16 +1,17 @@
 import os
 import numpy as np
 import pandas as pd
+import .network as nw
 from pyevtk.hl import imageToVTK
 
 def store_data(data, names, dir_path=os.getcwd()):
     """
-    Stores data in the specified directory. The data can be numpy arrays or dictionaries.
+    Stores data in the specified directory. The data can be NumPy arrays or dictionaries.
 
     Parameters
     ----------
     data : list
-        A list of data objects to be stored. Each object can be a numpy array or a dictionary.
+        A list of data objects to be stored. Each object can be a NumPy array or a dictionary.
     names : list
         A list of names for the data objects to be stored. The suffix of the name will determine the file format (e.g., '.npy' for numpy arrays, '.csv' for dictionaries, '.vti' for VTI files).
     dir_path : str, optional
@@ -20,6 +21,7 @@ def store_data(data, names, dir_path=os.getcwd()):
         os.makedirs(dir_path)
 
     for obj, name in zip(data, names):
+        obj = nw._shuttle_to_cpu(obj)
         if isinstance(obj, np.ndarray):
             if name.endswith('.npy'):
                 np.save(os.path.join(dir_path, name[:-4]), obj)

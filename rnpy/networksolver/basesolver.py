@@ -4,17 +4,16 @@ from .. import utils
 import warnings
 
 class BaseSolver:
+    """
+    Base class for solvers. It provides a common interface for all solvers and implements
+    the main solving loop and logging functionality.
+    """
     def solve(
             self,
             nw,
             res_max=1e-9,
             it_max=1e7,
             it_log=50,
-            save_log={
-                'kappa': True,
-                'residuals': True,
-                'residuals_plt': True
-            }
         ):
         it, self.it_lst = 0, []
         self.res_lst, self.k_effs = [], []
@@ -55,6 +54,6 @@ class BaseSolver:
     def get_log(self):
         return {
             'iterations': self.it_lst,
-            'kappas': self.k_effs,
+            'k_effs': self.k_effs,
             'residuals': self.res_lst
         }

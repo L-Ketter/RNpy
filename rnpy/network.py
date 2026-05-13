@@ -3,6 +3,32 @@ from . import networksolver as nws
 from . import _networkanalyzer as nwa
 
 class Network:
+    """
+    This class stores all the relevant information about the network,
+    including the conductivity arrays, the solution array,
+    and the parameters of the system.
+    It also provides methods to calculate the local flux density (jloc)
+    and the effective conductivity (kappa) of the network.
+
+    Attributes
+    ----------
+    u : np.ndarray
+        The solution array of the network, including boundaries.
+    k_arrs : dict
+        A dictionary pointing to the conductivity arrays for each direction and their sums.
+    xp : module
+        The array backend module (either NumPy or CuPy) used for calculations.
+    u_x0 : float
+        The solution at the left boundary.
+    u_xN : float
+        The solution at the right boundary.
+    L_x : float
+        The length of the system in the x direction.
+    dx : float
+        The distance between neighboring nodes in the network.
+    dtype : data-type
+        The data type used for the arrays in the network (e.g., np.float64, np.complex128, np.float32).
+    """
     axes = ['x','y','z']
     directions = ['+x','-x','+y','-y','+z','-z']
     u_slices = {
@@ -62,13 +88,39 @@ class Network:
         }
 
     def get_jloc(self):
+        """
+        Note: When jloc is calculated with default values (du=(u_xN-u_x0)=-1, L_x=1), jloc might need to be rescaled.
+        To get the real jloc for your system, multiply it with du(real)/L_x (real). Often it is sufficient
+        to just show normalized jloc. In such cases, simply divide jloc by its maximum entry.
+
+        Returns
+        -------
+        jloc: np.ndarray
+            An array of the same shape as the inner part of the solution array (i.e., excluding the boundaries) that contains the local flux density at each node.
+        """
         return nwa.get_jloc(self)
 
     def get_u_center(self):
+        """
+        Get the solution array without boundaries
+
+        Returns
+        -------
+        u_center: np.ndarray
+            An array of the same shape as the inner part of the solution array (i.e., excluding the boundaries).
+        """
         return nwa.get_u_center(self)
 
-    def get_kappa(self):
-        return nwa.get_kappa(self)
+    def get_k_eff(self):
+        """
+        Calculates the effective conductivity.
+
+        Returns
+        -------
+        kappa: float
+            The effective conductivity.
+        """
+        return nwa.get_k_eff(self)
 
     @staticmethod
     def _choose_array_backend(use_gpu=False):
@@ -101,17 +153,17 @@ class Network:
     @staticmethod
     def _shuttle_to_cpu(val):
         """
-        Converts a value to CPU if it is a CuPy array, otherwise returns the value as is.
+        Shuttles a value to CPU if it is a CuPy array, otherwise returns the value as is.
 
         Parameters
         ----------
         val : any
-            The value to be converted. It can be a CuPy array, NumPy array, or any other type.
+            The value to be shuttled to CPU. It can be any data type.
 
         Returns
         -------
         any
-            The value converted to CPU if it was a CuPy array, otherwise the original value.
+            The value shuttled to CPU if it was a CuPy array, otherwise the original value.
         """
         return val.get() if hasattr(val, "get") else val
 

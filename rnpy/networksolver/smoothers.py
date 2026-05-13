@@ -2,31 +2,22 @@ from numba import njit
 from .basesolver import BaseSolver
 
 class Jacobi(BaseSolver):
+    """
+    Solves the linear system using the Jacobi algorithm.
+
+    The algorithm computes the new solution by updating all grid nodes simultaneously
+    based only on values from the previous iteration.
+    """
     def __init__(self, **kwargs):
         self.omega = kwargs.get("omega", None)
 
     def update_arr(self, nw, arr, rhs=None):
-        """
-        Generates a temperature array with updated temperatures. The updated temperatures
-        are calculated based on the conductivities and current temperatures using the Jacobi method.
-
-        Parameters
-        ----------
-        network : Network
-            The network object containing the temperature array and conductivities.
-
-        Returns
-        -------
-        T_new : xp.ndarray
-            3D array of temperatures.
-            - the temperature entries are updated according to the Jacobi method
-        """
         k = nw.k_arrs
-        arr_new = nw.xp.zeros((arr[nw.u_slices['center']].shape), dtype=arr.dtype)
+        arr_new = nw.xp.zeros(
+            (arr[nw.u_slices['center']].shape), dtype=arr.dtype
+        ) if rhs is None else rhs[nw.u_slices['center']].copy()
         for d in nw.directions:
             arr_new += arr[nw.u_slices[d]] * k[d]
-        if rhs is not None:
-            arr_new += rhs[nw.u_slices['center']]
         arr_new *= k['sum_inv']
         if self.omega:
             arr_new = arr[nw.u_slices['center']] + self.omega * (arr_new - arr[nw.u_slices['center']])
@@ -36,31 +27,6 @@ class Jacobi(BaseSolver):
 
 @njit
 def _update_arr_SOR(arr, k_arrs, rhs, omega):
-    """
-    Generates a temperature array with updated temperatures. The updated temperatures
-    are calculated based on the conductivities and current temperatures using the
-    successive over relaxation (SOR) method.
-    numbas njit is utilized and speeds up the calculation significantly.
-
-    Parameters
-    ----------
-    T_arr : np.ndarray
-        an array with temperatures of all voxel_struc entries and boundaries.
-    omega: float
-        over-relaxation parameter. Typical values lie between 1 < omega < 2.
-        omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
-        rule of thumb: small values -> more stability,
-                       large values -> faster convergence
-    ks: list
-        list of the conductivities in all directions. The conductivities
-        entries need to be specified in the following order ['r','l','ba','f','t','b']
-
-    Returns
-    -------
-    T_new : np.ndarray
-        3D array of temperatures.
-        - the temperature entries are updated according to the SOR method
-    """
     k_px, k_mx, k_py, k_my, k_pz, k_mz, k_sum_inv, k_sum = k_arrs
     nx, ny, nz = arr.shape
     for i in range(1, nx-1):
@@ -81,26 +47,49 @@ def _update_arr_SOR(arr, k_arrs, rhs, omega):
                 arr[i, j, k] += omega * (arr_new - arr[i, j, k])
 
 class SOR(BaseSolver):
+    """
+    Solves the linear system using the SOR algorithm.
+
+    The algorithm iterates over all nodes sequentially and updates each value
+    in place. If no over-relaxation is applied (omega=1),
+    the method is equivalent to the Gauss-Seidel method.
+
+    Parameters
+    ----------
+    omega: float
+        over-relaxation parameter. Typical values lie between 1 < omega < 2.
+        omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
+        rule of thumb: small values -> more stability,
+                       large values -> faster convergence
+    """
     def __init__(self, omega=1.979):
         self.omega = omega
 
     def update_arr(self, nw, arr, rhs=None):
-        """
-        Updates temperatures in the current temperature array using the SOR algorithm.
-
-        Parameters
-        ----------
-        omega: float
-            over-relaxation parameter. Typical values lie between 1 < omega < 2.
-            omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
-            rule of thumb: small values -> more stability,
-                           large values -> faster convergence
-        """
         k_arrs = tuple(arr for arr in nw.k_arrs.values())
         _update_arr_SOR(arr, k_arrs, rhs=rhs, omega=self.omega)
         return arr
 
+
 class SORRedBlack(BaseSolver):
+    """
+    Solves the linear system using the SOR redblack algorithm.
+
+    The algorithm partitions the grid into black and red nodes via a checkerboard pattern,
+    to get two independent sets of nodes. The update is performed in two steps:
+    First, the new solution for the red nodes is computed based on the current
+    solution, followed by an over-relaxed update.
+    Black nodes are then updated using the newly computed red values,
+    again applying the over-relaxation formula.
+
+    Attributes
+    ----------
+    omega: float
+        over-relaxation parameter. Typical values lie between 1 < omega < 2.
+        omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
+        rule of thumb: small values -> more stability,
+                       large values -> faster convergence
+    """
     def __init__(self, omega=1.979):
         self.omega = omega
         self.red_black_slices = None
@@ -125,20 +114,6 @@ class SORRedBlack(BaseSolver):
         return [red_slices, black_slices]
 
     def update_arr(self, nw, arr, rhs=None):
-        """
-        Updates temperatures in the current temperature array using the SOR redblack algorithm.
-        The algorithm is utilizing a two-step procedure: In the first step, the temperatures
-        in the red-mask, and in the second step, temperatures in the black mask are updated.
-        In each step, new temperatures are updated using the Jacobi method with over-relaxation
-
-        Parameters
-        ----------
-        omega: float
-            over-relaxation parameter. Typical values lie between 1 < omega < 2.
-            omega > 2 leads to unstable convergence. omega < 1 leads to slow convergence.
-            rule of thumb: small values -> more stability,
-                           large values -> faster convergence
-            """
         if not self.red_black_slices:
             self.red_black_slices = self._get_red_black_slices(nw)
 

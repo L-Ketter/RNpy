@@ -2,36 +2,21 @@ from . import _solverutils as su
 from .basesolver import BaseSolver
 from .smoothers import SORRedBlack
 from .. import networksolver as nws
-"""
-class ConjugateGradient(BaseSolver):
-    def __init__(self, **kwargs):
-        self.initialized = False
 
-    def update_arr(self, nw, arr, rhs=None):
-        if not self.initialized:
-            self.r = su.get_r(nw, arr, rhs=rhs)
-            self.p = nw.xp.pad(
-                self.r.copy(),
-                pad_width=1,
-                mode='constant',
-                constant_values=0
-            )
-            self.rs_old = nw.xp.sum(self.r * self.r)
-            self.initialized = True
-        # calculate distance
-        Ap = su.get_Ax(nw, self.p)
-        alpha = self.rs_old / nw.xp.sum(self.p[nw.u_slices['center']] * Ap)
-        # update solution and residual
-        arr += alpha * self.p
-        self.r -= alpha * Ap
-        # calculate next search direction
-        rs_new = nw.xp.sum(self.r * self.r)
-        beta = rs_new / self.rs_old
-        self.p[nw.u_slices['center']] = self.r + beta * self.p[nw.u_slices['center']]
-        self.rs_old = rs_new
-        return arr
-"""
 class ConjugateGradient(BaseSolver):
+    """
+    Solves the linear system using the Conjugate Gradient algorithm with optional Jacobi-type preconditioning.
+
+    The algorithm iteratively updates the solution by calculating the search direction and step size based on the residuals.
+    Optionally, preconditioning is applied to improve convergence.
+
+    Attributes
+    ----------
+    it_pc: int
+        If 0, no preconditioning is applied.
+        If 1, a standard Jacobi preconditioning is applied.
+        If >1, iterative Jacobi-type smoothing is used as an approximate preconditioner
+    """
     def __init__(self, it_pc=True, **kwargs):
         self.initialized = False
         self.it_pc = it_pc

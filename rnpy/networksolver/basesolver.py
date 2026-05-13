@@ -1,5 +1,6 @@
 import time
 from . import _solverutils as su
+from ..network import Network as nw
 from .. import utils
 import warnings
 
@@ -44,7 +45,7 @@ class BaseSolver:
             If True, prints the current iteration, effective conductivity, and residual.
         """
         self.it_lst.append(nw._shuttle_to_cpu(it))
-        self.k_effs.append(nw._shuttle_to_cpu(nw.get_kappa()))
+        self.k_effs.append(nw._shuttle_to_cpu(nw.get_k_eff()))
         r_scaled_L1 = su.get_r_scaled_L1(nw, arr=nw.u, rhs=None)
         self.res_lst.append(r_scaled_L1)
         if print_output:
@@ -53,7 +54,7 @@ class BaseSolver:
 
     def get_log(self):
         return {
-            'iterations': self.it_lst,
-            'k_effs': self.k_effs,
-            'residuals': self.res_lst
+            'iterations': nw._shuttle_to_cpu(self.it_lst),
+            'k_effs': nw._shuttle_to_cpu(self.k_effs),
+            'residuals': nw._shuttle_to_cpu(self.res_lst)
         }

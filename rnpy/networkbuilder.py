@@ -142,12 +142,11 @@ class NetworkBuilder:
                 Conductivities of the bonds between the voxels.
             """
             zero_mask = (k_pos0 == 0) | (k_pos1 == 0) | (R_int == float('inf'))
-            other_mask = ~(zero_mask) & ~(inf_mask)
-            del zero_mask
             inf_mask = (k_pos0 == float('inf')) & (k_pos1 == float('inf'))
-            del inf_mask
+            other_mask = ~(zero_mask) & ~(inf_mask)
             k_link = self.ctx.xp.zeros(k_pos0.shape, dtype=self.ctx.dtype)
             k_link[inf_mask] = float('inf')
+            del zero_mask, inf_mask
             k_series_inv = 0.5*(1/k_pos0[other_mask] + 1/k_pos1[other_mask])
             if R_int is not None:
                 k_link[other_mask] = (k_series_inv + R_int[other_mask]/self.ctx.dx)**-1

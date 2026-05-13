@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-import .network as nw
+from .network import Network as nw
 from pyevtk.hl import imageToVTK
 
 def store_data(data, names, dir_path=os.getcwd()):
@@ -21,8 +21,8 @@ def store_data(data, names, dir_path=os.getcwd()):
         os.makedirs(dir_path)
 
     for obj, name in zip(data, names):
-        obj = nw._shuttle_to_cpu(obj)
         if isinstance(obj, np.ndarray):
+            obj = nw._shuttle_to_cpu(obj)
             if name.endswith('.npy'):
                 np.save(os.path.join(dir_path, name[:-4]), obj)
             elif name.endswith('.vti'):

@@ -49,9 +49,11 @@ builder = nwb.NetworkBuilder()
 nw = builder.build(
     voxel_struc=voxel_struc,
     phase_conds=[3,5],
+    use_gpu=False
 )
 ```
 Now we choose a solver for the network. Available solvers are `Jacobi()`, `SOR()`, `SORRedBlack` and `ConjugateGradient()`. We choose the SOR implementation in this example and iterate until either the cutoff residual `res_max` or the maximum iteration count `it_max` is reached. Progress information is printed every `it_log` iterations.
+Note: When `use_gpu=True` is specified, all solvers except `SOR()` can be used.
 ```python
 solver = nws.SOR()
 solver.solve(

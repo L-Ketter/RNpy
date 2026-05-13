@@ -1,6 +1,7 @@
 from . import _solverutils as su
 from .basesolver import BaseSolver
 from .smoothers import SORRedBlack
+from .. import networksolver as nws
 """
 class ConjugateGradient(BaseSolver):
     def __init__(self, **kwargs):
@@ -31,14 +32,24 @@ class ConjugateGradient(BaseSolver):
         return arr
 """
 class ConjugateGradient(BaseSolver):
-    def __init__(self, pc=True, **kwargs):
+    def __init__(self, it_pc=True, **kwargs):
         self.initialized = False
-        self.pc = pc
+        self.it_pc = it_pc
+        self.pc = nws.Jacobi() if it_pc > 0 else None
 
     def _getz(self, nw, r):
-        if self.pc:
-            return r * nw.k_arrs['sum_inv']
-        return r
+        if self.it_pc == 0:
+            return r
+        else:
+            for _ in range(self.it_pc):
+                if _ == 0:
+                    z = r * nw.k_arrs['sum_inv']
+                elif _ == 1:
+                    z_pad = nw.xp.pad(z, pad_width=1, mode='constant', constant_values=0)
+                    r_pad = nw.xp.pad(r, pad_width=1, mode='constant', constant_values=0)
+                else:
+                    z_pad = self.pc.update_arr(nw, arr=z_pad, rhs=r_pad)
+            return z_pad[nw.u_slices['center']] if self.it_pc > 1 else z
 
     def update_arr(self, nw, arr, rhs=None):
         if not self.initialized:

@@ -68,7 +68,7 @@ Now we choose a solver for the network. Available solvers are `Jacobi()`, `SOR()
 **Note:** When `use_gpu=True` is specified, all solvers except `SOR()` can be used.
 ```python
 solver = nws.SOR()
-solver.solve(
+nw = solver.solve(
     nw,
     res_max=1e-09,
     it_max=1e6,

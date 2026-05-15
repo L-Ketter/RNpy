@@ -70,7 +70,7 @@ Now we choose a solver for the network. Available solvers are `Jacobi()`, `SOR()
 solver = nws.SOR()
 nw = solver.solve(
     nw,
-    res_max=1e-09,
+    res_max=1e-9,
     it_max=1e6,
     it_log=50
 )

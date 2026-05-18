@@ -11,40 +11,40 @@ class Jacobi(BaseSolver):
     def __init__(self, **kwargs):
         self.omega = kwargs.get("omega", None)
 
-    def update_arr(self, nw, arr, rhs=None):
+    def update_x(self, nw, x, rhs=None):
         k = nw.k_arrs
-        arr_new = nw.xp.zeros(
-            (arr[nw.u_slices['center']].shape), dtype=arr.dtype
+        x_new = nw.xp.zeros(
+            (x[nw.u_slices['center']].shape), dtype=x.dtype
         ) if rhs is None else rhs[nw.u_slices['center']].copy()
         for d in nw.directions:
-            arr_new += arr[nw.u_slices[d]] * k[d]
-        arr_new *= k['sum_inv']
+            x_new += x[nw.u_slices[d]] * k[d]
+        x_new *= k['sum_inv']
         if self.omega:
-            arr_new = arr[nw.u_slices['center']] + self.omega * (arr_new - arr[nw.u_slices['center']])
-        arr[nw.u_slices['center']] = arr_new
-        return arr
+            x_new = x[nw.u_slices['center']] + self.omega * (x_new - x[nw.u_slices['center']])
+        x[nw.u_slices['center']] = x_new
+        return x
 
 
 @njit
-def _update_arr_SOR(arr, k_arrs, rhs, omega):
+def _update_x_SOR(x, k_arrs, rhs, omega):
     k_px, k_mx, k_py, k_my, k_pz, k_mz, k_sum_inv, k_sum = k_arrs
-    nx, ny, nz = arr.shape
+    nx, ny, nz = x.shape
     for i in range(1, nx-1):
         for j in range(1, ny-1):
             for k in range(1, nz-1):
                 rhs_val = 0.0
                 if rhs is not None:
                     rhs_val = rhs[i, j, k]
-                arr_new = (
-                    arr[i+1, j, k] * k_px[i-1, j-1, k-1]
-                    + arr[i-1, j, k] * k_mx[i-1, j-1, k-1]
-                    + arr[i, j+1, k] * k_py[i-1, j-1, k-1]
-                    + arr[i, j-1, k] * k_my[i-1, j-1, k-1]
-                    + arr[i, j, k+1] * k_pz[i-1, j-1, k-1]
-                    + arr[i, j, k-1] * k_mz[i-1, j-1, k-1]
+                x_new = (
+                    x[i+1, j, k] * k_px[i-1, j-1, k-1]
+                    + x[i-1, j, k] * k_mx[i-1, j-1, k-1]
+                    + x[i, j+1, k] * k_py[i-1, j-1, k-1]
+                    + x[i, j-1, k] * k_my[i-1, j-1, k-1]
+                    + x[i, j, k+1] * k_pz[i-1, j-1, k-1]
+                    + x[i, j, k-1] * k_mz[i-1, j-1, k-1]
                     + rhs_val
                 ) * k_sum_inv[i-1, j-1, k-1]
-                arr[i, j, k] += omega * (arr_new - arr[i, j, k])
+                x[i, j, k] += omega * (x_new - x[i, j, k])
 
 class SOR(BaseSolver):
     """
@@ -65,10 +65,10 @@ class SOR(BaseSolver):
     def __init__(self, omega=1.979):
         self.omega = omega
 
-    def update_arr(self, nw, arr, rhs=None):
-        k_arrs = tuple(arr for arr in nw.k_arrs.values())
-        _update_arr_SOR(arr, k_arrs, rhs=rhs, omega=self.omega)
-        return arr
+    def update_x(self, nw, x, rhs=None):
+        k_arrs = tuple(k for k in nw.k_arrs.values())
+        _update_x_SOR(x, k_arrs, rhs=rhs, omega=self.omega)
+        return x
 
 
 class SORRedBlack(BaseSolver):
@@ -113,27 +113,27 @@ class SORRedBlack(BaseSolver):
         ]
         return [red_slices, black_slices]
 
-    def update_arr(self, nw, arr, rhs=None):
+    def update_x(self, nw, x, rhs=None):
         if not self.red_black_slices:
             self.red_black_slices = self._get_red_black_slices(nw)
 
         k = nw.k_arrs
         for color_slices in (self.red_black_slices):
             for idx in color_slices:
-                arr_new = (
-                    arr[nw.u_slices['+x']][idx] * k['+x'][idx]
-                    + arr[nw.u_slices['-x']][idx] * k['-x'][idx]
-                    + arr[nw.u_slices['+y']][idx] * k['+y'][idx]
-                    + arr[nw.u_slices['-y']][idx] * k['-y'][idx]
-                    + arr[nw.u_slices['+z']][idx] * k['+z'][idx]
-                    + arr[nw.u_slices['-z']][idx] * k['-z'][idx]
+                x_new = (
+                    x[nw.u_slices['+x']][idx] * k['+x'][idx]
+                    + x[nw.u_slices['-x']][idx] * k['-x'][idx]
+                    + x[nw.u_slices['+y']][idx] * k['+y'][idx]
+                    + x[nw.u_slices['-y']][idx] * k['-y'][idx]
+                    + x[nw.u_slices['+z']][idx] * k['+z'][idx]
+                    + x[nw.u_slices['-z']][idx] * k['-z'][idx]
                 )
                 if rhs is not None:
-                    arr_new += rhs[nw.u_slices['center']][idx]
-                arr_new *= k['sum_inv'][idx]
+                    x_new += rhs[nw.u_slices['center']][idx]
+                x_new *= k['sum_inv'][idx]
 
-                arr[nw.u_slices['center']][idx] += self.omega * (
-                    arr_new - arr[nw.u_slices['center']][idx]
+                x[nw.u_slices['center']][idx] += self.omega * (
+                    x_new - x[nw.u_slices['center']][idx]
                 )
-        return arr
+        return x
 

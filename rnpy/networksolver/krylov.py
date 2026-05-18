@@ -33,12 +33,12 @@ class ConjugateGradient(BaseSolver):
                     z_pad = nw.xp.pad(z, pad_width=1, mode='constant', constant_values=0)
                     r_pad = nw.xp.pad(r, pad_width=1, mode='constant', constant_values=0)
                 else:
-                    z_pad = self.pc.update_arr(nw, arr=z_pad, rhs=r_pad)
+                    z_pad = self.pc.update_x(nw, x=z_pad, rhs=r_pad)
             return z_pad[nw.u_slices['center']] if self.it_pc > 1 else z
 
-    def update_arr(self, nw, arr, rhs=None):
+    def update_x(self, nw, x, rhs=None):
         if not self.initialized:
-            self.r = su.get_r(nw, arr, rhs=rhs)
+            self.r = su.get_r(nw, x=x, rhs=rhs)
             z = self._getz(nw, self.r)
             self.p = nw.xp.pad(z.copy(), pad_width=1, mode='constant', constant_values=0)
             self.rs_old = nw.xp.vdot(self.r, z)
@@ -47,7 +47,7 @@ class ConjugateGradient(BaseSolver):
         Ap = su.get_Ax(nw, self.p)
         alpha = self.rs_old / nw.xp.vdot(self.p[nw.u_slices['center']], Ap)
         # update solution and residual
-        arr += alpha * self.p
+        x += alpha * self.p
         self.r -= alpha * Ap
         # preconditioning
         z = self._getz(nw, self.r)
@@ -56,4 +56,4 @@ class ConjugateGradient(BaseSolver):
         beta = rs_new / self.rs_old
         self.rs_old = rs_new
         self.p[nw.u_slices['center']] = z + beta * self.p[nw.u_slices['center']]
-        return arr
+        return x

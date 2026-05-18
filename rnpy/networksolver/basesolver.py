@@ -32,7 +32,7 @@ class BaseSolver:
                 print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)')
                 return nw
             it += 1
-            nw.u = self.update_arr(nw, arr=nw.u, rhs=None)
+            nw.u = self.update_x(nw, x=nw.u, rhs=None)
 
     def _log_lists(self, it, res_max, nw, print_output=True):
         """
@@ -46,7 +46,7 @@ class BaseSolver:
         """
         self.it_lst.append(nw._shuttle_to_cpu(it))
         self.k_effs.append(nw._shuttle_to_cpu(nw.get_k_eff()))
-        r_scaled_L1 = su.get_r_scaled_L1(nw, arr=nw.u, rhs=None)
+        r_scaled_L1 = su.get_r_scaled_L1(nw, x=nw.u, rhs=None)
         self.res_lst.append(r_scaled_L1)
         if print_output:
             print(f"\riteration: {self.it_lst[-1]} | conductivity: {self.k_effs[-1]:.4f} | "

@@ -48,7 +48,7 @@ def get_r(nw, x, rhs=None):
 
 def get_r_scaled_L1(nw, x, rhs=None):
     """
-    Calculates the L1 norm of the residual scaled by the inverse of the sum of conductivities. This provides a measure of the average absolute residual per node, normalized by the local conductivity.
+    Calculates the mean L1 norm of the residual scaled by the inverse of the sum of conductivities.
 
     Parameters
     ----------

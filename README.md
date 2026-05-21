@@ -55,7 +55,7 @@ voxel_struc = comp.blobs3D(
 )
 ```
 Basic figures of small voxel structures can be made using the `compositefigure` function. However, for larger structures, the function becomes significantly slower. For such cases and for advanced visualizations it is recommended to convert the numpy array into a .vti and do visualizations using ParaView (`.vti` export via `utils.store_data()` is shown below).
-Next, we will set up and run a resistor network. First, we create a `Network` object using the `Networkbuilder`. We pass the 3D voxel structure together with `phase_conds`, a list where each entry corresponds to the conductivity value of the respective phase (i.e. the conductivity at index `i` is assigned to phase `i` in `voxel_struc`).
+Next, we will set up and run a resistor network. First, we create a `Network` object using the `NetworkBuilder`. We pass the 3D voxel structure together with `phase_conds`, a list where each entry corresponds to the conductivity value of the respective phase (i.e. the conductivity at index `i` is assigned to phase `i` in `voxel_struc`).
 ```python
 builder = nwb.NetworkBuilder()
 nw = builder.build(

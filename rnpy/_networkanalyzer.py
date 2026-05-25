@@ -11,32 +11,55 @@ def get_k_eff(nw):
     k_eff: float
         The effective conductivity calculated using Fouriers law.
     """
-    j_x = (
-        - nw.k_x_arr / nw.dx
-        * (nw.u[1:, 1:-1, 1:-1] - nw.u[0:-1, 1:-1, 1:-1])
-    )
+    j_x = get_j(nw, ax='x')
     k_eff = - nw.xp.mean(j_x)*nw.L_x / (nw.u_xN - nw.u_x0)
     return k_eff
 
 def get_u_center(nw):
     return nw.u[nw.u_slices["center"]]
 
-def get_jloc(nw):
+def get_j(nw, ax, centered=False):
     """
-    Builds an array storing the flux map.
-    The calculation assumes steady state conditions (flux into a node equals flux out of a node).
-    1) Add the sums of all flux terms in each direction.
-    2) Divide by the distance between neighboring nodes to get real flux densities.
-    3) Due to steady state conditions, half of the calculated sum of absolute fluxes
-    is going into the node and half is going out of the node. Hence, we divide by 2.
+    Calculates the local flux density in the specified direction.
+    """
+    if ax == 'x':
+        k = nw.k_x_arr
+        u1 = nw.u[1:, 1:-1, 1:-1]
+        u0 = nw.u[0:-1, 1:-1, 1:-1]
+    elif ax == 'y':
+        k = nw.k_y_arr
+        u1 = nw.u[1:-1, 1:, 1:-1]
+        u0 = nw.u[1:-1, 0:-1, 1:-1]
+    elif ax == 'z':
+        k = nw.k_z_arr
+        u1 = nw.u[1:-1, 1:-1, 1:]
+        u0 = nw.u[1:-1, 1:-1, 0:-1]
+    j = - k * (u1-u0) / nw.dx
+    if centered:
+        j = 0.5 * (j[nw.k_slices['+'+ ax]] +j[nw.k_slices['-' + ax]])
+    return j
+
+def get_j_mag(nw):
+    """
+    Calculates the magnitude of the flux density vector at each node.
+    """
+    j_x = get_j(nw, ax='x', centered=True)
+    j_y = get_j(nw, ax='y', centered=True)
+    j_z = get_j(nw, ax='z', centered=True)
+    return nw.xp.sqrt(j_x**2 + j_y**2 + j_z**2)
+
+def get_j_act(nw):
+    """
+    Computes a scalar flux activity measure at each node based on
+    absolute face flux contributions in a steady-state transport field.
     """
     u_center = get_u_center(nw)
-    jloc = nw.xp.zeros(u_center.shape, dtype=nw.dtype)
+    j_int= nw.xp.zeros(u_center.shape, dtype=nw.dtype)
     for direc in nw.directions:
         u_direc = nw.u[nw.u_slices[direc]]
-        jloc += nw.xp.abs(nw.k_arrs[direc] * (u_direc-u_center))
-    jloc /= 2*nw.dx
-    return jloc
+        j_int += nw.xp.abs(nw.k_arrs[direc] * (u_direc-u_center))
+    j_int /= 2*nw.dx
+    return j_int
 
 
 

@@ -87,18 +87,63 @@ class Network:
             'sum': self.k_sum_arr
         }
 
-    def get_jloc(self):
+    def get_j_act(self):
         """
-        Note: When jloc is calculated with default values (du=(u_xN-u_x0)=-1, L_x=1), jloc might need to be rescaled.
-        To get the real jloc for your system, multiply it with du(real)/L_x (real). Often it is sufficient
-        to just show normalized jloc. In such cases, simply divide jloc by its maximum entry.
+        Computes a scalar flux activity measure at each node based on
+        absolute face flux contributions in a steady-state transport field.
+        1) Add the sums of all flux terms in each direction.
+        2) Divide by the distance between neighboring nodes to get real flux densities.
+        3) Due to steady state conditions, half of the calculated sum of absolute fluxes
+        is going into the node and half is going out of the node. Hence, we divide by 2.
 
         Returns
         -------
-        jloc: np.ndarray
-            An array of the same shape as the inner part of the solution array (i.e., excluding the boundaries) that contains the local flux density at each node.
+        j_int: xp.ndarray
+            The scalar flux intensity measure at each node based
+            on absolute face flux contributions in a steady-state transport field.
         """
-        return nwa.get_jloc(self)
+        return nwa.get_j_act(self)
+
+    def get_j(self, ax, centered=False):
+        """
+        Calculates the local flux density in the specified direction.
+
+        Parameters
+        ----------
+        nw: Network
+            The Network object containing the solution array and conductivity arrays.
+        ax: str
+            The direction along which to calculate the flux density ('x', 'y', or 'z').
+        centered: bool, optional
+            Whether to linearly interpolate the flux density
+            to the cell centers (default is False).
+
+        Returns
+        -------
+        j: xp.ndarray
+            The local flux density in the specified direction.
+        """
+        return nwa.get_j(self, ax=ax, centered=centered)
+
+    def get_j_mag(self):
+        """
+        Calculates the magnitude of the flux density vector at each node.
+        1) Calculates flux densities in each direction and interpolates to the node values
+        2) Takes the magnitude of the resulting flux density vector.
+        Corresponds to local current density in the case of electrical conductivity.
+        Corresponds to local heat flux density in the case of thermal conductivity.
+
+        Parameters
+        ----------
+        nw: Network
+            The Network object containing the solution array and conductivity arrays.
+
+        Returns
+        -------
+        j_mag: xp.ndarray
+            The magnitude of the flux density vector at each node.
+        """
+        return nwa.get_j_mag(self)
 
     def get_u_center(self):
         """

@@ -79,7 +79,7 @@ Finally, we compute and store some interesting quantities from the solved networ
 ```python
 print(f'k_eff = {nw.get_k_eff():.4f}') # effective conductivity
 log = solver.get_log()                 # solver log
-jloc = nw.get_jloc()                   # local flux density
+jloc = nw.get_j_mag()                  # local current density
 u_center = nw.get_u_center()           # solution field
 utils.store_data(
     data = [log, jloc, u_center, voxel_struc],

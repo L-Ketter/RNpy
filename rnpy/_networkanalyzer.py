@@ -22,21 +22,12 @@ def get_j(nw, ax, centered=False):
     """
     Calculates the local flux density in the specified direction.
     """
-    if ax == 'x':
-        k = nw.k_x_arr
-        u1 = nw.u[1:, 1:-1, 1:-1]
-        u0 = nw.u[0:-1, 1:-1, 1:-1]
-    elif ax == 'y':
-        k = nw.k_y_arr
-        u1 = nw.u[1:-1, 1:, 1:-1]
-        u0 = nw.u[1:-1, 0:-1, 1:-1]
-    elif ax == 'z':
-        k = nw.k_z_arr
-        u1 = nw.u[1:-1, 1:-1, 1:]
-        u0 = nw.u[1:-1, 1:-1, 0:-1]
-    j = - k * (u1-u0) / nw.dx
+    k = {'x': nw.k_x_arr, 'y': nw.k_y_arr, 'z': nw.k_z_arr}[ax]
+    u1 = nw.u[nw.u_ax_slices[f'{ax}_1']]
+    u0 = nw.u[nw.u_ax_slices[f'{ax}_0']]
+    j = -k * (u1-u0) / nw.dx
     if centered:
-        j = 0.5 * (j[nw.k_slices['+'+ ax]] +j[nw.k_slices['-' + ax]])
+        j = 0.5 * (j[nw.k_slices['+'+ax]] +j[nw.k_slices['-'+ax]])
     return j
 
 def get_j_mag(nw):

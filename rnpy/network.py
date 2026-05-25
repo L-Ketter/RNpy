@@ -31,24 +31,31 @@ class Network:
     """
     axes = ['x','y','z']
     directions = ['+x','-x','+y','-y','+z','-z']
+    u_ax_slices = {
+        'x_0': (slice(None, -1), slice(1, -1), slice(1, -1)),
+        'x_1': (slice(1, None), slice(1, -1), slice(1, -1)),
+        'y_0': (slice(1, -1), slice(None, -1), slice(1, -1)),
+        'y_1': (slice(1, -1), slice(1, None), slice(1, -1)),
+        'z_0': (slice(1, -1), slice(1, -1), slice(None, -1)),
+        'z_1': (slice(1, -1), slice(1, -1), slice(1, None))
+    }
     u_slices = {
-            'center': (slice(1, -1), slice(1, -1), slice(1, -1)),
-            '+x': (slice(2, None), slice(1, -1), slice(1, -1)),
-            '-x': (slice(None, -2), slice(1, -1), slice(1, -1)),
-            '+y': (slice(1, -1), slice(2, None), slice(1, -1)),
-            '-y': (slice(1, -1), slice(None, -2), slice(1, -1)),
-            '+z': (slice(1, -1), slice(1, -1), slice(2, None)),
-            '-z': (slice(1, -1), slice(1, -1), slice(None, -2))
+        'center': (slice(1, -1), slice(1, -1), slice(1, -1)),
+        '+x': (slice(2, None), slice(1, -1), slice(1, -1)),
+        '-x': (slice(None, -2), slice(1, -1), slice(1, -1)),
+        '+y': (slice(1, -1), slice(2, None), slice(1, -1)),
+        '-y': (slice(1, -1), slice(None, -2), slice(1, -1)),
+        '+z': (slice(1, -1), slice(1, -1), slice(2, None)),
+        '-z': (slice(1, -1), slice(1, -1), slice(None, -2))
     }
     k_slices = {
-            '+x': (slice(1, None), slice(None, None), slice(None, None)),
-            '-x': (slice(None, -1), slice(None, None), slice(None, None)),
-            '+y': (slice(None, None), slice(1, None), slice(None, None)),
-            '-y': (slice(None, None), slice(None, -1), slice(None, None)),
-            '+z': (slice(None, None), slice(None, None), slice(1, None)),
-            '-z': (slice(None, None), slice(None, None), slice(None, -1))
+        '+x': (slice(1, None), slice(None, None), slice(None, None)),
+        '-x': (slice(None, -1), slice(None, None), slice(None, None)),
+        '+y': (slice(None, None), slice(1, None), slice(None, None)),
+        '-y': (slice(None, None), slice(None, -1), slice(None, None)),
+        '+z': (slice(None, None), slice(None, None), slice(1, None)),
+        '-z': (slice(None, None), slice(None, None), slice(None, -1))
     }
-
     def __init__(
             self,
             k_x_arr,

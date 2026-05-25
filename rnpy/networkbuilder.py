@@ -62,15 +62,6 @@ class NetworkBuilder:
     and then generates the conductivity arrays and initial potential array to create
     the Network object.
     """
-    k_gen_slices = {
-            'x_0': (slice(None, -1), slice(1, -1), slice(1, -1)),
-            'x_1': (slice(1, None), slice(1, -1), slice(1, -1)),
-            'y_0': (slice(1, -1), slice(None, -1), slice(1, -1)),
-            'y_1': (slice(1, -1), slice(1, None), slice(1, -1)),
-            'z_0': (slice(1, -1), slice(1, -1), slice(None, -1)),
-            'z_1': (slice(1, -1), slice(1, -1), slice(1, None))
-    }
-
     def _get_k_raw_arr(self):
         """
         Builds a 3D conductivity array with voxel conductivities
@@ -157,8 +148,8 @@ class NetworkBuilder:
 
         k_dir_arrs = {}
         for ax in Network.axes:
-            k_pos0 = k_raw_arr[self.k_gen_slices[f'{ax}_0']]
-            k_pos1 = k_raw_arr[self.k_gen_slices[f'{ax}_1']]
+            k_pos0 = k_raw_arr[Network.u_ax_slices[f'{ax}_0']]
+            k_pos1 = k_raw_arr[Network.u_ax_slices[f'{ax}_1']]
             if self.ctx.mat_bounds is not None and self.ctx.int_bounds is not None:
                 k_dir_arrs[ax] = _calc_bond_cond(k_pos0,k_pos1,R_ints[ax])
             else:
@@ -221,8 +212,8 @@ class NetworkBuilder:
 
         R_ints = {}
         for ax in Network.axes:
-            integ_pos0 = voxel_struc_w_bound_integ[self.k_gen_slices[f'{ax}_0']]
-            integ_pos1 = voxel_struc_w_bound_integ[self.k_gen_slices[f'{ax}_1']]
+            integ_pos0 = voxel_struc_w_bound_integ[Network.u_ax_slices[f'{ax}_0']]
+            integ_pos1 = voxel_struc_w_bound_integ[Network.u_ax_slices[f'{ax}_1']]
             interface_arr = boundary_matrix[integ_pos0, integ_pos1]
             R_ints[ax] = self.ctx.xp.asarray(interface_arr)
         del voxel_struc_w_bound_integ, boundary_matrix

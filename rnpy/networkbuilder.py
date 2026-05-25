@@ -25,7 +25,7 @@ class BuildContext():
         self.int_bounds = int_bounds
         self.mat_bounds = mat_bounds
 
-        self.u_start_center = u_start # absolute path to the initial potential array file
+        self.u_start_center = u_start
         self.u_x0 = kwargs.get('u_x0', 1)
         self.u_xN = kwargs.get('u_xN', 0)
         self.L_x = kwargs.get('L_x', 1)
@@ -45,14 +45,6 @@ class BuildContext():
                 raise ValueError("'mat_bounds' must be a square matrix with dimensions "
                                  "equal to the number of phases in 'phase_conds'.")
 
-        if len(np.unique(self.voxel_struc)) != len(self.phase_conds):
-            raise ValueError("'phase_conds' length must match the number "
-                             "of unique phases in 'voxel_struc'.")
-        if not np.array_equal(np.unique(self.voxel_struc), np.arange(len(self.phase_conds))):
-            raise ValueError(
-                "'voxel_struc' must contain phase indices starting from 0 up to "
-                "the number of phases minus one, without gaps."
-            )
 
 class NetworkBuilder:
     """
@@ -223,8 +215,7 @@ class NetworkBuilder:
         """
         Initializes the solution array with a
         linear distribution between the boundaries.
-        If `u_start_center` is provided, it loads the initial solution
-        array from the specified file.
+        If `u_start_center` is provided, it loads the initial solution array as the center values.
         It sets all solutions for nodes with 0 conductivity in all directions to 0.
 
         Parameters
@@ -261,8 +252,8 @@ class NetworkBuilder:
             return u_start
 
         u_start = _get_linguess()
-        if self.ctx.u_start_center:
-            u_start[Network.u_slices['center']] = self.ctx.xp.load(self.ctx.u_start_center)
+        if self.ctx.u_start_center is not None:
+            u_start[Network.u_slices['center']] = self.ctx.u_start_center
         return u_start
 
     def build(
@@ -298,8 +289,8 @@ class NetworkBuilder:
         mat_bounds : list of lists, optional
             A square matrix of material bounds for each phase. The dimensions of the matrix should match the
             number of phases. Default is None (no material bounds).
-        u_start : str, optional
-            An absolute path to a .npy file containing the initial solution array for the simulation.
+        u_start : xp.ndarray, optional
+            A 3D array containing the initial solution values for the simulation.
             If not provided, the initial solution array will be generated with a linear distribution between the boundaries. Default is None.
         u_x0 : float, optional
             The solution at the left boundary. Default is 1.

@@ -1,12 +1,10 @@
 from . import _solverutils as su
 from .basesolver import BaseSolver
-from .smoothers import SORRedBlack
 from .. import networksolver as nws
 
-class ConjugateGradient(BaseSolver):
+class CG(BaseSolver):
     """
     Solves the linear system using the Conjugate Gradient algorithm with optional Jacobi-type preconditioning.
-
     The algorithm iteratively updates the solution by calculating the search direction and step size based on the residuals.
     Optionally, preconditioning is applied to improve convergence.
 
@@ -17,10 +15,13 @@ class ConjugateGradient(BaseSolver):
         If 1, a standard Jacobi preconditioning is applied.
         If >1, iterative Jacobi-type smoothing is used as an approximate preconditioner
     """
-    def __init__(self, it_pc=True, **kwargs):
+    def __init__(self, it_pc=1, **kwargs):
         self.initialized = False
         self.it_pc = it_pc
-        self.pc = nws.Jacobi() if it_pc > 0 else None
+        self.pc = kwargs.get('pc', nws.Jacobi()) if it_pc > 0 else None
+
+    def _get_inner_product(self, nw,a, b):
+        return nw.xp.vdot(a, b)
 
     def _getz(self, nw, r):
         if self.it_pc == 0:
@@ -41,19 +42,35 @@ class ConjugateGradient(BaseSolver):
             self.r = su.get_r(nw, x=x, rhs=rhs)
             z = self._getz(nw, self.r)
             self.p = nw.xp.pad(z.copy(), pad_width=1, mode='constant', constant_values=0)
-            self.rs_old = nw.xp.vdot(self.r, z)
+            self.rs_old = self._get_inner_product(nw, self.r, z)
             self.initialized = True
         # calculate distance
         Ap = su.get_Ax(nw, self.p)
-        alpha = self.rs_old / nw.xp.vdot(self.p[nw.u_slices['center']], Ap)
+        alpha = self.rs_old / self._get_inner_product(nw, self.p[nw.u_slices['center']], Ap)
         # update solution and residual
         x += alpha * self.p
         self.r -= alpha * Ap
         # preconditioning
         z = self._getz(nw, self.r)
         # calculate next search direction
-        rs_new = nw.xp.vdot(self.r, z)
+        rs_new = self._get_inner_product(nw, self.r, z)
         beta = rs_new / self.rs_old
         self.rs_old = rs_new
         self.p[nw.u_slices['center']] = z + beta * self.p[nw.u_slices['center']]
         return x
+
+class COCG(CG):
+    """
+    Conjugate Orthogonal Conjugate Gradient (COCG) method for solving linear systems with complex symmetric matrices.
+    This method is a modification of the Conjugate Gradient algorithm, designed to handle complex symmetric matrices
+    that may arise in certain applications, such as electromagnetic simulations.
+
+    Attributes
+    ----------
+    it_pc: int
+        If 0, no preconditioning is applied.
+        If 1, a standard Jacobi preconditioning is applied.
+        If >1, iterative Jacobi-type smoothing is used as an approximate preconditioner
+    """
+    def _get_inner_product(self, nw,a, b):
+        return nw.xp.sum(a * b)

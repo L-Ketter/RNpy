@@ -45,7 +45,6 @@ class BuildContext():
                 raise ValueError("'mat_bounds' must be a square matrix with dimensions "
                                  "equal to the number of phases in 'phase_conds'.")
 
-
 class NetworkBuilder:
     """
     The NetworkBuilder class is responsible for constructing a Network object
@@ -80,11 +79,11 @@ class NetworkBuilder:
         )
         return k_raw_arr
 
-    def _get_k_arrs(self, k_raw_arr, R_ints=None):
+    def _get_k_arrs(self, k_raw_arr, G_ints=None):
         """
         Builds the conductivity arrays for the simulation.
-        If `mat_bounds` and `int_bounds` are provided, the interface resistances
-        are calculated using the _get_R_int_arrs method and used in the bond
+        If `mat_bounds` and `int_bounds` are provided, the interface conductances
+        are calculated using the _get_G_int_arrs method and used in the bond
         conductivity calculation. Along each axis, the bond conductivities are
         calculated using the internal _calc_bond_cond method.
         Then the sum of all bond conductivities is calculated and stored in `k_sum_arr`.
@@ -93,8 +92,8 @@ class NetworkBuilder:
         ----------
         k_raw_arr : xp.ndarray
             3D array of conductivities with padded boundary values.
-        R_ints : dict, optional
-            Dictionary with interface resistance arrays along each axis.
+        G_ints : dict, optional
+            Dictionary with interface conductance arrays along each axis.
 
         Returns
         -------
@@ -105,7 +104,7 @@ class NetworkBuilder:
         k_dir_arrs : dict
             Dictionary with bond conductivity arrays along each axis.
         """
-        def _calc_bond_cond(k_pos0, k_pos1, R_int=None):
+        def _calc_bond_cond(k_pos0, k_pos1, G_int=None):
             """
             Calculates the bond conductivities between two neighboring voxels according
             to the series model.
@@ -116,23 +115,26 @@ class NetworkBuilder:
                 Conductivities of voxels at position 0.
             k_pos1 : xp.ndarray
                 Conductivities of voxels at position 1.
-            R_int : xp.ndarray, optional
-                Interface resistances between the voxels.
+            G_int : xp.ndarray, optional
+                Interface conductances between the voxels.
 
             Returns
             -------
             k_link : xp.ndarray
                 Conductivities of the bonds between the voxels.
             """
-            zero_mask = (k_pos0 == 0) | (k_pos1 == 0) | (R_int == float('inf'))
+            zero_mask = (k_pos0 == 0) | (k_pos1 == 0)
             inf_mask = (k_pos0 == float('inf')) & (k_pos1 == float('inf'))
+            if G_int is not None:
+                zero_mask |= (G_int == 0)
+                inf_mask &= (G_int == float('inf'))
             other_mask = ~(zero_mask) & ~(inf_mask)
             k_link = self.ctx.xp.zeros(k_pos0.shape, dtype=self.ctx.dtype)
             k_link[inf_mask] = float('inf')
             del zero_mask, inf_mask
             k_series_inv = 0.5*(1/k_pos0[other_mask] + 1/k_pos1[other_mask])
-            if R_int is not None:
-                k_link[other_mask] = (k_series_inv + R_int[other_mask]/self.ctx.dx)**-1
+            if G_int is not None:
+                k_link[other_mask] = (k_series_inv + 1/(G_int[other_mask]*self.ctx.dx) )**-1
             else:
                 k_link[other_mask] = (k_series_inv)**-1
             del other_mask, k_series_inv
@@ -143,7 +145,7 @@ class NetworkBuilder:
             k_pos0 = k_raw_arr[Network.u_ax_slices[f'{ax}_0']]
             k_pos1 = k_raw_arr[Network.u_ax_slices[f'{ax}_1']]
             if self.ctx.mat_bounds is not None and self.ctx.int_bounds is not None:
-                k_dir_arrs[ax] = _calc_bond_cond(k_pos0,k_pos1,R_ints[ax])
+                k_dir_arrs[ax] = _calc_bond_cond(k_pos0,k_pos1,G_ints[ax])
             else:
                 k_dir_arrs[ax] = _calc_bond_cond(k_pos0,k_pos1)
             del k_pos0, k_pos1
@@ -161,9 +163,9 @@ class NetworkBuilder:
 
         return k_sum_arr, k_sum_arr_inv, k_dir_arrs
 
-    def _get_R_int_arrs(self):
+    def _get_G_int_arrs(self):
         """
-        Builds the interface resistance arrays
+        Builds the interface conductance arrays
         First pad integers for the plates and
         adiabatic boundaries to the voxel_struc.
         Then combine `mat_bounds` and `int_bounds` into
@@ -175,18 +177,18 @@ class NetworkBuilder:
                            [ 4.  5.  1. inf]
                            [ 0.  1. inf inf]
                            [inf inf inf inf]]
-        Then generate the interface resistance arrays for each direction,
+        Then generate the interface conductance arrays for each direction,
         based on the padded voxel structure and the boundary matrix.
 
         Returns
         -------
-        R_ints : dict
-            Dictionary with interface resistance arrays along each axis.
+        G_ints : dict
+            Dictionary with interface conductance arrays along each axis.
             The keys are the different axes ('x', 'y', 'z')
-            and the values are the corresponding resistance arrays.
+            and the values are the corresponding conductance arrays.
         """
-        plate_integ = self.ctx.voxel_struc.max() + 1
-        adiabatic_integ = self.ctx.voxel_struc.max() + 2
+        plate_integ = len(self.ctx.phase_conds)
+        adiabatic_integ = len(self.ctx.phase_conds) + 1
         voxel_struc_w_bound_integ = self.ctx.xp.pad(
             self.ctx.voxel_struc,
             pad_width = ((1,1), (1,1), (1,1)),
@@ -202,14 +204,14 @@ class NetworkBuilder:
         boundary_matrix[:plate_integ, plate_integ] = self.ctx.int_bounds
         boundary_matrix[plate_integ, :plate_integ] = self.ctx.int_bounds
 
-        R_ints = {}
+        G_ints = {}
         for ax in Network.axes:
             integ_pos0 = voxel_struc_w_bound_integ[Network.u_ax_slices[f'{ax}_0']]
             integ_pos1 = voxel_struc_w_bound_integ[Network.u_ax_slices[f'{ax}_1']]
             interface_arr = boundary_matrix[integ_pos0, integ_pos1]
-            R_ints[ax] = self.ctx.xp.asarray(interface_arr)
+            G_ints[ax] = self.ctx.xp.asarray(interface_arr)
         del voxel_struc_w_bound_integ, boundary_matrix
-        return R_ints
+        return G_ints
 
     def _get_u_start(self, k_sum_arr):
         """
@@ -285,9 +287,9 @@ class NetworkBuilder:
         use_gpu : bool, optional
             Determines whether a numpy or CuPy backend will be used for array operations. Default is False (numpy).
         int_bounds : list, optional
-            A list of interface resistances between the phases. The length of the list should match the number of phases. Default is None (no interface resistances).
+            A list of interface conductances between the phases. The length of the list should match the number of phases. Default is None (no interface conductances).
         mat_bounds : list of lists, optional
-            A square matrix of material bounds for each phase. The dimensions of the matrix should match the
+            A square matrix of interface conductances between phases. The dimensions of the matrix should match the
             number of phases. Default is None (no material bounds).
         u_start : xp.ndarray, optional
             A 3D array containing the initial solution values for the simulation.
@@ -319,9 +321,9 @@ class NetworkBuilder:
         )
 
         k_raw_arr = self._get_k_raw_arr()
-        R_ints = self._get_R_int_arrs() if self.ctx.mat_bounds is not None else None
-        k_sum_arr, k_sum_arr_inv, k_dir_arrs = self._get_k_arrs(k_raw_arr, R_ints=R_ints)
-        del R_ints, k_raw_arr
+        G_ints = self._get_G_int_arrs() if self.ctx.mat_bounds is not None else None
+        k_sum_arr, k_sum_arr_inv, k_dir_arrs = self._get_k_arrs(k_raw_arr, G_ints=G_ints)
+        del G_ints, k_raw_arr
         u_start = self._get_u_start(k_sum_arr)
 
         nw = Network(

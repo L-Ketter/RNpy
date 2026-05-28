@@ -109,7 +109,7 @@ class Network:
             The scalar flux intensity measure at each node based
             on absolute face flux contributions in a steady-state transport field.
         """
-        return nwa.get_j_act(self)
+        return self._shuttle_to_cpu(nwa.get_j_act(self))
 
     def get_j(self, ax, centered=False):
         """
@@ -130,7 +130,7 @@ class Network:
         j: xp.ndarray
             The local flux density in the specified direction.
         """
-        return nwa.get_j(self, ax=ax, centered=centered)
+        return self._shuttle_to_cpu(nwa.get_j(self, ax=ax, centered=centered))
 
     def get_j_mag(self):
         """
@@ -150,7 +150,7 @@ class Network:
         j_mag: xp.ndarray
             The magnitude of the flux density vector at each node.
         """
-        return nwa.get_j_mag(self)
+        return self._shuttle_to_cpu(nwa.get_j_mag(self))
 
     def get_u_center(self):
         """
@@ -161,7 +161,7 @@ class Network:
         u_center: np.ndarray
             An array of the same shape as the inner part of the solution array (i.e., excluding the boundaries).
         """
-        return nwa.get_u_center(self)
+        return self._shuttle_to_cpu(nwa.get_u_center(self))
 
     def get_k_eff(self):
         """
@@ -172,7 +172,7 @@ class Network:
         kappa: float
             The effective conductivity.
         """
-        return nwa.get_k_eff(self)
+        return self._shuttle_to_cpu(nwa.get_k_eff(self))
 
     @staticmethod
     def _choose_array_backend(use_gpu=False):

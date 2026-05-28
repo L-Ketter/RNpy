@@ -20,7 +20,7 @@ class BuildContext():
         self.dtype = dtype
         self.use_gpu = use_gpu
         self.xp = Network._choose_array_backend(use_gpu)
-        self.voxel_struc = Network._shuttle_to_cpu(voxel_struc)
+        self.voxel_struc = voxel_struc
         self.phase_conds = phase_conds
         self.int_bounds = int_bounds
         self.mat_bounds = mat_bounds
@@ -31,20 +31,21 @@ class BuildContext():
         self.L_x = kwargs.get('L_x', 1)
         self.dx = self.L_x/voxel_struc.shape[0]
 
+
         if (mat_bounds is not None) != (int_bounds is not None):
             raise ValueError("To consider interfaces, both 'mat_bounds' and 'int_bounds'"
                              " must be provided together. Only one was provided.")
 
         elif (mat_bounds is not None) and (int_bounds is not None):
-            self.mat_bounds = np.array(mat_bounds, dtype=self.dtype)
-            self.int_bounds = np.array(int_bounds, dtype=self.dtype)
+            self.mat_bounds = self.xp.array(mat_bounds, dtype=self.dtype)
+            self.int_bounds = self.xp.array(int_bounds, dtype=self.dtype)
             if len(int_bounds) != len(self.phase_conds):
                 raise ValueError("'int_bounds' length must match the number "
                                  "of phases in 'phase_conds'.")
             if self.mat_bounds.shape != (len(self.phase_conds), len(self.phase_conds)):
                 raise ValueError("'mat_bounds' must be a square matrix with dimensions "
                                  "equal to the number of phases in 'phase_conds'.")
-            if not self.xp.allclose(self.mat_bounds, self.xp.swapaxes(self.mat_bounds, 0, 1)):
+            if not self.xp.allclose(self.mat_bounds, self.xp.swapaxes(self.mat_bounds, 0, 1), equal_nan=True):
                 raise ValueError("'mat_bounds' must be symmetric to represent directional interface conductances.")
 
 class NetworkBuilder:
@@ -81,6 +82,15 @@ class NetworkBuilder:
         )
         return k_raw_arr
 
+    def _reciprocal(self, arr):
+            """
+            Calculates the reciprocal of the values in the input array. Defines 1/0 = 0 and 1/inf = 0.
+            """
+            arr_inv = self.ctx.xp.zeros_like(arr)
+            nonzero_noninf = (arr != 0) & (~self.ctx.xp.isinf(arr))
+            arr_inv[nonzero_noninf] = 1/arr[nonzero_noninf]
+            return arr_inv
+
     def _get_k_arrs(self, k_raw_arr, g_ints=None):
         """
         Builds the conductivity arrays for the simulation.
@@ -106,6 +116,7 @@ class NetworkBuilder:
         k_dir_arrs : dict
             Dictionary with bond conductivity arrays along each axis.
         """
+
         def _calc_bond_cond(k_pos0, k_pos1, g_int=None):
             """
             Calculates the bond conductivities between two neighboring voxels according
@@ -135,15 +146,13 @@ class NetworkBuilder:
 
             k_link = self.ctx.xp.zeros(k_pos0.shape, dtype=self.ctx.dtype)
             k_link[is_short] = self.ctx.xp.inf
-            k_series_inv = 0.5*(1/k_pos0[is_linker] + 1/k_pos1[is_linker])
+            k_series_inv = 0.5*(self._reciprocal(k_pos0[is_linker]) + self._reciprocal(k_pos1[is_linker]))
             if g_int is not None:
-                k_int_inv = self.ctx.xp.zeros_like(g_int[is_linker], dtype=self.ctx.dtype)
-                finite = ~self.ctx.xp.isinf(g_int[is_linker])
-                k_int_inv[finite] = 1/(g_int[is_linker][finite]*self.ctx.dx)
-                k_link[is_linker] = (k_series_inv + k_int_inv)**-1
+                k_int_inv = self._reciprocal(g_int[is_linker] * self.ctx.dx)
+                k_link[is_linker] = 1/(k_series_inv + k_int_inv)
             else:
-                k_link[is_linker] = (k_series_inv)**-1
-            del is_open, is_short,is_linker, k_series_inv
+                k_link[is_linker] = 1/(k_series_inv)
+            del is_open, is_short, is_linker, k_series_inv
             return k_link
 
         k_dir_arrs = {}
@@ -162,11 +171,7 @@ class NetworkBuilder:
                 k_dir_arrs[ax][Network.k_slices[f'+{ax}']] +
                 k_dir_arrs[ax][Network.k_slices[f'-{ax}']]
             )
-        k_sum_nonzero_mask = (k_sum_arr!=0)
-        k_sum_arr_inv = self.ctx.xp.zeros_like(k_sum_arr)
-        k_sum_arr_inv[k_sum_nonzero_mask] = 1/k_sum_arr[k_sum_nonzero_mask]
-        del k_sum_nonzero_mask
-
+        k_sum_arr_inv = self._reciprocal(k_sum_arr)
         return k_sum_arr, k_sum_arr_inv, k_dir_arrs
 
     def _get_g_int_arrs(self):

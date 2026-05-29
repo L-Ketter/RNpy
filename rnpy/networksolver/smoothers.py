@@ -24,7 +24,6 @@ class Jacobi(BaseSolver):
         x[nw.u_slices['center']] = x_new
         return x
 
-
 @njit
 def _update_x_SOR(x, k_arrs, rhs, omega):
     k_px, k_mx, k_py, k_my, k_pz, k_mz, k_sum_inv, k_sum = k_arrs
@@ -48,7 +47,7 @@ def _update_x_SOR(x, k_arrs, rhs, omega):
 
 class SOR(BaseSolver):
     """
-    Solves the linear system using the SOR algorithm.
+    Successive over-relaxation (SOR) algorithm.
 
     The algorithm iterates over all nodes sequentially and updates each value
     in place. If no over-relaxation is applied (omega=1),
@@ -70,10 +69,9 @@ class SOR(BaseSolver):
         _update_x_SOR(x, k_arrs, rhs=rhs, omega=self.omega)
         return x
 
-
 class SORRedBlack(BaseSolver):
     """
-    Solves the linear system using the SOR redblack algorithm.
+    Successive over-relaxation (SOR) with red-black ordering.
 
     The algorithm partitions the grid into black and red nodes via a checkerboard pattern,
     to get two independent sets of nodes. The update is performed in two steps:

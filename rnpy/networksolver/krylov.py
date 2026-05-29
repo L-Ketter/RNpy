@@ -4,9 +4,8 @@ from .. import networksolver as nws
 
 class CG(BaseSolver):
     """
-    Solves the linear system using the Conjugate Gradient algorithm with optional Jacobi-type preconditioning.
+    Conjugate Gradient (CG) algorithm with optional Jacobi-type preconditioning.
     The algorithm iteratively updates the solution by calculating the search direction and step size based on the residuals.
-    Optionally, preconditioning is applied to improve convergence.
 
     Attributes
     ----------
@@ -61,9 +60,8 @@ class CG(BaseSolver):
 
 class COCG(CG):
     """
-    Conjugate Orthogonal Conjugate Gradient (COCG) method for solving linear systems with complex symmetric matrices.
-    This method is a modification of the Conjugate Gradient algorithm, designed to handle complex symmetric matrices
-    that may arise in certain applications, such as electromagnetic simulations.
+    Conjugate Orthogonal Conjugate Gradient (COCG) method.
+    This method is a modification of the CG method, designed to handle complex symmetric matrices.
 
     Attributes
     ----------

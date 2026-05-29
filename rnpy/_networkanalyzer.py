@@ -1,15 +1,6 @@
 def get_k_eff(nw):
     """
-    First the average flux density along the field direction is calculated.
-    Next, considering the mean flux density,
-    the potential difference specified by u_xN and u_x0,
-    as well as the spacial distance between the hotplates,
-    the effective conductivity is calculated using Fouriers law.
-
-    Returns
-    -------
-    k_eff: float
-        The effective conductivity calculated using Fouriers law.
+    Calculates the effective conductivity.
     """
     j_x = get_j(nw, ax='x')
     k_eff = - nw.xp.mean(j_x)*nw.L_x / (nw.u_xN - nw.u_x0)
@@ -27,7 +18,7 @@ def get_j(nw, ax, centered=False):
     u0 = nw.u[nw.u_ax_slices[f'{ax}_0']]
     j = -k * (u1-u0) / nw.dx
     if centered:
-        j = 0.5 * (j[nw.k_slices['+'+ax]] +j[nw.k_slices['-'+ax]])
+        j = 0.5 * (j[nw.k_slices['+'+ax]] + j[nw.k_slices['-'+ax]])
     return j
 
 def get_j_mag(nw):

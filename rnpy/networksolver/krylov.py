@@ -22,7 +22,7 @@ class CG(BaseSolver):
     def _get_inner_product(self, nw,a, b):
         return nw.xp.vdot(a, b)
 
-    def _getz(self, nw, r):
+    def _get_z(self, nw, r):
         if self.it_pc == 0:
             return r
         else:
@@ -39,7 +39,7 @@ class CG(BaseSolver):
     def update_x(self, nw, x, rhs=None):
         if not self.initialized:
             self.r = su.get_r(nw, x=x, rhs=rhs)
-            z = self._getz(nw, self.r)
+            z = self._get_z(nw, self.r)
             self.p = nw.xp.pad(z.copy(), pad_width=1, mode='constant', constant_values=0)
             self.rs_old = self._get_inner_product(nw, self.r, z)
             self.initialized = True
@@ -50,7 +50,7 @@ class CG(BaseSolver):
         x += alpha * self.p
         self.r -= alpha * Ap
         # preconditioning
-        z = self._getz(nw, self.r)
+        z = self._get_z(nw, self.r)
         # calculate next search direction
         rs_new = self._get_inner_product(nw, self.r, z)
         beta = rs_new / self.rs_old

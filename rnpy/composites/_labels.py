@@ -2,7 +2,11 @@ import numpy as np
 import networkx  as nx
 from skimage.measure import label
 
-def get_labels(voxel_struc, phase_id, periodic=[True, True, True]):
+def get_labels(
+        voxel_struc,
+        phase_id,
+        periodic=[True, True, True],
+        ):
     """
     Get the labels of the connected components of a given phase in the voxel structure.
     """
@@ -22,12 +26,12 @@ def _wrap_labels(labels, periodic=[True, True, True]):
         the periodic boundaries of the voxel structure.
         """
         pairs = set()
-        faces = [
-            (labels[0, :, :], labels[-1, :, :]),  # x0, xN
-            (labels[:, 0, :], labels[:, -1, :]),  # y0, yN
-            (labels[:, :, 0], labels[:, :, -1]),  # z0, zN
+        lbl_faces = [
+            (labels[0,:,:], labels[-1,:,:]),  # x0, xN
+            (labels[:,0,:], labels[:,-1,:]),  # y0, yN
+            (labels[:,:,0], labels[:,:,-1])   # z0, zN
         ]
-        for i, (slice_0, slice_n) in enumerate(faces):
+        for i, (slice_0, slice_n) in enumerate(lbl_faces):
             if not periodic[i]:
                 continue
             mask = (slice_0 > 0) & (slice_n > 0)

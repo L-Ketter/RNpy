@@ -22,7 +22,7 @@ class Jacobi(BaseSolver):
         if self.omega:
             x_new = x[nw.u_slices['center']] + self.omega * (x_new - x[nw.u_slices['center']])
         x[nw.u_slices['center']] = x_new
-        return x
+        return nw.apply_periodic(x) if nw.periodic else x
 
 @njit
 def _update_x_SOR(x, k_arrs, rhs, omega):
@@ -65,6 +65,8 @@ class SOR(BaseSolver):
         self.omega = omega
 
     def update_x(self, nw, x, rhs=None):
+        if nw.periodic:
+            raise(NotImplementedError("SOR with periodic boundary conditions is not implemented."))
         k_arrs = tuple(k for k in nw.k_arrs.values())
         _update_x_SOR(x, k_arrs, rhs=rhs, omega=self.omega)
         return x
@@ -133,5 +135,6 @@ class SORRedBlack(BaseSolver):
                 x[nw.u_slices['center']][idx] += self.omega * (
                     x_new - x[nw.u_slices['center']][idx]
                 )
+            x = nw.apply_periodic(x) if nw.periodic else x
         return x
 

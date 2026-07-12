@@ -110,6 +110,7 @@ class VoxAnalyzer():
             )
             if i % 100000 == 0:
                 print(f"\rProcessed {i}/{mask_sum} voxels", end='', flush=True)
+        print()
         for lbl in results:
             results[lbl]["surf_area_fracs"] /= results[lbl]["num_surfaces"]
         return lbls, results, unique_surf_ids
@@ -139,13 +140,13 @@ class VoxAnalyzer():
         # get boundary contacts for each label
         print('Getting boundary contacts for phase', phase_id)
         boundary_contacts = {}
-        outer_nbrs = np.array([nbr_ids[face] for face in self.faces])
-        outer_lbls = np.array([lbls[face] for face in self.faces])
+        outer_nbrs = np.concatenate([nbr_ids[face].flatten() for face in self.faces])
+        outer_lbls = np.concatenate([lbls[face].flatten() for face in self.faces])
         unique_outer_lbls = np.unique(outer_lbls)
         for i, lbl in enumerate(unique_outer_lbls):
             if lbl == 0:  # skip background (0)
                 continue
-            lbl_nbr_ids = set(outer_nbrs[outer_lbls == lbl].flatten())
+            lbl_nbr_ids = set(outer_nbrs[outer_lbls == lbl])
             contacts = [b_id for b_id in flat_boundary_ids if b_id in lbl_nbr_ids]
             boundary_contacts[lbl] = contacts
             if i % 10 == 0:

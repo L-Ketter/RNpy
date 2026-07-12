@@ -64,6 +64,7 @@ class Network:
             k_sum_arr,
             k_sum_arr_inv,
             u_arr,
+            periodic,
             xp,
             dtype,
             u_x0,
@@ -74,6 +75,7 @@ class Network:
         self.u = u_arr
         self.xp = xp
         self.dtype = dtype
+        self.periodic = periodic
         self.u_x0 = u_x0
         self.u_xN = u_xN
         self.L_x = L_x
@@ -173,6 +175,17 @@ class Network:
             The effective conductivity.
         """
         return self._shuttle_to_cpu(nwa.get_k_eff(self))
+
+    @staticmethod
+    def apply_periodic(arr):
+        """
+        Applies periodic boundary conditions in the y- and z-directions to an input array.
+        """
+        arr[:,0,:] = arr[:,-2,:]
+        arr[:,-1,:] = arr[:,1,:]
+        arr[:,:,0] = arr[:,:,-2]
+        arr[:,:,-1] = arr[:,:,1]
+        return arr
 
     @staticmethod
     def _choose_array_backend(use_gpu=False):

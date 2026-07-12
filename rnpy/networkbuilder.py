@@ -15,6 +15,7 @@ class BuildContext():
                  int_bounds=None,
                  mat_bounds=None,
                  u_start=None,
+                 periodic=False,
                  **kwargs):
 
         self.dtype = dtype
@@ -24,13 +25,13 @@ class BuildContext():
         self.phase_conds = phase_conds
         self.int_bounds = int_bounds
         self.mat_bounds = mat_bounds
+        self.periodic = periodic
 
         self.u_start_center = u_start
         self.u_x0 = kwargs.get('u_x0', 1)
         self.u_xN = kwargs.get('u_xN', 0)
         self.L_x = kwargs.get('L_x', 1)
         self.dx = self.L_x/voxel_struc.shape[0]
-
 
         if (mat_bounds is not None) != (int_bounds is not None):
             raise ValueError("To consider interfaces, both 'mat_bounds' and 'int_bounds'"
@@ -56,7 +57,7 @@ class NetworkBuilder:
     and then generates the conductivity arrays and initial potential array to create
     the Network object.
     """
-    def _get_k_raw_arr(self):
+    def _get_k_raw_arr(self, periodic=False):
         """
         Builds a 3D conductivity array with voxel conductivities
         of the pure phases and pads boundaries.
@@ -80,7 +81,7 @@ class NetworkBuilder:
             mode = 'constant',
             constant_values = ((float('inf'), float('inf')), (0,0), (0,0))
         )
-        return k_raw_arr
+        return Network.apply_periodic(k_raw_arr) if periodic else k_raw_arr
 
     def _reciprocal(self, arr):
             """
@@ -210,6 +211,11 @@ class NetworkBuilder:
                 (adiabatic_integ,adiabatic_integ)
             )
         )
+        if self.ctx.periodic:
+            voxel_struc_w_bound_integ[:,0,:] = voxel_struc_w_bound_integ[:,-2,:]
+            voxel_struc_w_bound_integ[:,-1,:] = voxel_struc_w_bound_integ[:,1,:]
+            voxel_struc_w_bound_integ[:,:,0] = voxel_struc_w_bound_integ[:,:,-2]
+            voxel_struc_w_bound_integ[:,:,-1] = voxel_struc_w_bound_integ[:,:,1]
         boundary_matrix = self.ctx.xp.full((plate_integ+2, plate_integ+2), self.ctx.xp.inf, dtype=self.ctx.dtype)
         boundary_matrix[:plate_integ, :plate_integ] = self.ctx.mat_bounds
         boundary_matrix[:plate_integ, plate_integ] = self.ctx.int_bounds
@@ -262,11 +268,13 @@ class NetworkBuilder:
             positions = self.ctx.xp.arange(1,nx-1) - 1/2
             u_start[Network.u_slices['center']] = (self.ctx.u_x0+((self.ctx.u_xN-self.ctx.u_x0)/(nx-2))*positions)[:, None, None]
             u_start[Network.u_slices['center']][(k_sum_arr == 0)] = 0
+            u_start = Network.apply_periodic(u_start) if self.ctx.periodic else u_start
             return u_start
 
         u_start = _get_linguess()
         if self.ctx.u_start_center is not None:
             u_start[Network.u_slices['center']] = self.ctx.u_start_center
+
         return u_start
 
     def build(
@@ -276,6 +284,7 @@ class NetworkBuilder:
             u_start=None,
             int_bounds=None,
             mat_bounds=None,
+            periodic=False,
             use_gpu=False,
             dtype=float,
             u_x0=1,
@@ -302,6 +311,8 @@ class NetworkBuilder:
         mat_bounds : list of lists, optional
             A square matrix of interface conductances between phases. The dimensions of the matrix should match the
             number of phases. Default is None (no material bounds).
+        periodic : bool, optional
+            Determines whether the y- and z- direction are treated as periodic (True) or closed (False). Default is False (non-periodic).
         u_start : xp.ndarray, optional
             A 3D array containing the initial solution values for the simulation.
             If not provided, the initial solution array will be generated with a linear distribution between the boundaries. Default is None.
@@ -328,10 +339,11 @@ class NetworkBuilder:
             u_x0=u_x0,
             u_xN=u_xN,
             L_x=L_x,
+            periodic=periodic,
             **kwargs
         )
 
-        k_raw_arr = self._get_k_raw_arr()
+        k_raw_arr = self._get_k_raw_arr(periodic=self.ctx.periodic)
         g_ints = self._get_g_int_arrs() if self.ctx.mat_bounds is not None else None
         k_sum_arr, k_sum_arr_inv, k_dir_arrs = self._get_k_arrs(k_raw_arr, g_ints=g_ints)
         del g_ints, k_raw_arr
@@ -344,6 +356,7 @@ class NetworkBuilder:
             k_sum_arr=k_sum_arr,
             k_sum_arr_inv=k_sum_arr_inv,
             u_arr=u_start,
+            periodic = self.ctx.periodic,
             xp = self.ctx.xp,
             dtype = self.ctx.dtype,
             u_x0 = self.ctx.u_x0,

@@ -9,10 +9,12 @@ A python tool for running resistor network simulations based on voxel structures
 
 ## System requirements
 - NumPy
-- Matplotlib
 - Numba
-- pyevtk
 - pandas
+- pyevtk
+- Matplotlib
+- NetworkX
+- scikit-image
 - CuPy
 
 ## Installation & Updates
@@ -43,18 +45,18 @@ In the first step, we will create a 3D microstructure using the `blobs3D` functi
 1. Inserted clusters overlap.
 2. The function sets the total number of clusters at the start. After all clusters are placed, any remaining difference to the target volume fraction (`disp_volfrac`) is filled with unclustered voxels.
 ```python
-import rnpy.composites as comp
+from rnpy.voxels import structures
 import rnpy.networksolver as nws
 import rnpy.networkbuilder as nwb
 import rnpy.utils as utils
 
-voxel_struc = comp.blobs3D(
+voxel_struc = structures.blobs3D(
     size=20,
     disp_volfrac=50,
     sclust=10
 )
 ```
-Basic figures of small voxel structures can be made using the `compositefigure` function. However, for larger structures, the function becomes significantly slower. For such cases and for advanced visualizations it is recommended to convert the numpy array into a .vti and do visualizations using ParaView (`.vti` export via `utils.store_data()` is shown below).
+Basic figures of small voxel structures can be made using `utils.compositefigure(voxel_struc)`. However, for larger structures, the function becomes significantly slower. For such cases and for advanced visualizations it is recommended to convert the numpy array into a .vti and do visualizations using ParaView (`.vti` export via `utils.store_data()` is shown below).
 Next, we will set up and run a resistor network. First, we create a `Network` object using the `NetworkBuilder`. We pass the 3D voxel structure together with `phase_conds`, a list where each entry corresponds to the conductivity value of the respective phase (i.e. the conductivity at index `i` is assigned to phase `i` in `voxel_struc`).
 ```python
 builder = nwb.NetworkBuilder()

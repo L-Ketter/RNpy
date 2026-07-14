@@ -68,28 +68,6 @@ class CG(BaseSolver):
         self.p = nw.apply_periodic(self.p) if nw.periodic else self.p
         return x
 
-#    def update_x(self, nw, x, rhs=None):
-#        if not self.initialized:
-#            self.r = su.get_r(nw, x=x, rhs=rhs)
-#            z = self._get_z(nw, self.r)
-#            self.p = nw.xp.pad(z.copy(), pad_width=1, mode='constant', constant_values=0)
-#            self.rs_old = self._get_inner_product(nw, self.r, z)
-#            self.initialized = True
-#        # calculate distance
-#        Ap = su.get_Ax(nw, self.p)
-#        alpha = self.rs_old / self._get_inner_product(nw, self.p[nw.u_slices['center']], Ap)
-#        # update solution and residual
-#        x += alpha * self.p
-#        self.r -= alpha * Ap
-#        # preconditioning
-#        z = self._get_z(nw, self.r)
-#        # calculate next search direction
-#        rs_new = self._get_inner_product(nw, self.r, z)
-#        beta = rs_new / self.rs_old
-#        self.rs_old = rs_new
-#        self.p[nw.u_slices['center']] = z + beta * self.p[nw.u_slices['center']]
-#        return x
-
 class COCG(CG):
     """
     Conjugate Orthogonal Conjugate Gradient (COCG) method.

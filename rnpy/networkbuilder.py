@@ -57,7 +57,7 @@ class NetworkBuilder:
     and then generates the conductivity arrays and initial potential array to create
     the Network object.
     """
-    def _get_k_raw_arr(self, periodic=False):
+    def _get_k_raw_arr(self):
         """
         Builds a 3D conductivity array with voxel conductivities
         of the pure phases and pads boundaries.
@@ -81,7 +81,7 @@ class NetworkBuilder:
             mode = 'constant',
             constant_values = ((float('inf'), float('inf')), (0,0), (0,0))
         )
-        return Network.apply_periodic(k_raw_arr) if periodic else k_raw_arr
+        return Network.apply_periodic(k_raw_arr) if self.ctx.periodic else k_raw_arr
 
     def _reciprocal(self, arr):
             """
@@ -206,16 +206,12 @@ class NetworkBuilder:
             pad_width = ((1,1), (1,1), (1,1)),
             mode = 'constant',
             constant_values = (
-                (plate_integ,plate_integ),
-                (adiabatic_integ,adiabatic_integ),
-                (adiabatic_integ,adiabatic_integ)
+                (plate_integ, plate_integ),
+                (adiabatic_integ, adiabatic_integ),
+                (adiabatic_integ, adiabatic_integ)
             )
         )
-        if self.ctx.periodic:
-            voxel_struc_w_bound_integ[:,0,:] = voxel_struc_w_bound_integ[:,-2,:]
-            voxel_struc_w_bound_integ[:,-1,:] = voxel_struc_w_bound_integ[:,1,:]
-            voxel_struc_w_bound_integ[:,:,0] = voxel_struc_w_bound_integ[:,:,-2]
-            voxel_struc_w_bound_integ[:,:,-1] = voxel_struc_w_bound_integ[:,:,1]
+        voxel_struc_w_bound_integ = Network.apply_periodic(voxel_struc_w_bound_integ) if self.ctx.periodic else voxel_struc_w_bound_integ
         boundary_matrix = self.ctx.xp.full((plate_integ+2, plate_integ+2), self.ctx.xp.inf, dtype=self.ctx.dtype)
         boundary_matrix[:plate_integ, :plate_integ] = self.ctx.mat_bounds
         boundary_matrix[:plate_integ, plate_integ] = self.ctx.int_bounds
@@ -268,14 +264,13 @@ class NetworkBuilder:
             positions = self.ctx.xp.arange(1,nx-1) - 1/2
             u_start[Network.u_slices['center']] = (self.ctx.u_x0+((self.ctx.u_xN-self.ctx.u_x0)/(nx-2))*positions)[:, None, None]
             u_start[Network.u_slices['center']][(k_sum_arr == 0)] = 0
-            u_start = Network.apply_periodic(u_start) if self.ctx.periodic else u_start
             return u_start
 
         u_start = _get_linguess()
         if self.ctx.u_start_center is not None:
             u_start[Network.u_slices['center']] = self.ctx.u_start_center
 
-        return u_start
+        return Network.apply_periodic(u_start) if self.ctx.periodic else u_start
 
     def build(
             self,
@@ -343,7 +338,7 @@ class NetworkBuilder:
             **kwargs
         )
 
-        k_raw_arr = self._get_k_raw_arr(periodic=self.ctx.periodic)
+        k_raw_arr = self._get_k_raw_arr()
         g_ints = self._get_g_int_arrs() if self.ctx.mat_bounds is not None else None
         k_sum_arr, k_sum_arr_inv, k_dir_arrs = self._get_k_arrs(k_raw_arr, g_ints=g_ints)
         del g_ints, k_raw_arr

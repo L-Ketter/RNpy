@@ -179,7 +179,7 @@ class Network:
     @staticmethod
     def apply_periodic(arr):
         """
-        Applies periodic boundary conditions in the y- and z-directions to an input array.
+        Applies periodic boundary conditions in the y- and z-directions to an input array that has boundary padding.
         """
         arr[:,0,:] = arr[:,-2,:]
         arr[:,-1,:] = arr[:,1,:]

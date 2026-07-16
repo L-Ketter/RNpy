@@ -66,7 +66,7 @@ nw = builder.build(
     use_gpu=False
 )
 ```
-Now we choose a solver for the network. Available solvers are `Jacobi()`, `SOR()`, `SORRedBlack()` and `CG()` and `COCG()`. We choose the SOR implementation in this example and iterate until either the cutoff residual `res_max` or the maximum iteration count `it_max` is reached. Progress information is printed every `it_log` iterations.
+Now we choose a solver for the network. Available solvers are `Jacobi()`, `SOR()`, `SORRedBlack()`, `CG()` and `COCG()`. We choose the SOR implementation in this example and iterate until either the cutoff residual `res_max` or the maximum iteration count `it_max` is reached. Progress information is printed every `it_log` iterations.
 ```python
 solver = nws.SOR()
 nw = solver.solve(

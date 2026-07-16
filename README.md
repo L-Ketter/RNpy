@@ -39,7 +39,7 @@ Ketter, L., Greb, N., Bernges, T., Zeier, W. G., Using resistor network models t
 
 ## Example usage
 
-In the first step, we will create a 3D microstructure using the `blobs3D` function from the `composites` module. The function generates a cubic microstructure, whereby the overall edge length in voxels is controlled by the `size` parameter. Voxel clusters, each containing a number of `sclust` voxels are inserted into a continuous medium until a volume fraction of `disp_volfrac` (volume fraction in %) is reached. The resulting NumPy array consists of 0s and 1s as entries, where 0 represents the continuous phase and 1 represents the dispersed phase.
+In the first step, we will create a 3D microstructure using the `blobs3D` function from the `voxels.structures` module. The function generates a cubic microstructure, whereby the overall edge length in voxels is controlled by the `size` parameter. Voxel clusters, each containing a number of `sclust` voxels are inserted into a continuous medium until a volume fraction of `disp_volfrac` (volume fraction in %) is reached. The resulting NumPy array consists of 0s and 1s as entries, where 0 represents the continuous phase and 1 represents the dispersed phase.
 
 **Note:**
 1. Inserted clusters overlap.

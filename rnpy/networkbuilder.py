@@ -300,12 +300,15 @@ class NetworkBuilder:
         dtype : data-type, optional
             The desired data-type for the arrays of the network object. Default is np.float64.
         use_gpu : bool, optional
-            Determines whether a numpy or CuPy backend will be used for array operations. Default is False (numpy).
+            Determines whether a NumPy or CuPy backend will be used for array operations. Default is False (NumPy).
         int_bounds : list, optional
-            A list of interface conductances between the phases. The length of the list should match the number of phases. Default is None (no interface conductances).
+            A list of interface conductances between the phases and boundaries in the field direction.
+            The length of the list should match the number of phases.
+            Default is None (no boundaries between phases and boundaries).
         mat_bounds : list of lists, optional
-            A square matrix of interface conductances between phases. The dimensions of the matrix should match the
-            number of phases. Default is None (no material bounds).
+            A square matrix of interface conductances between phases.
+            The dimensions of the matrix should match the number of phases.
+            Default is None (no boundaries between phases).
         periodic : bool, optional
             Determines whether the y- and z- direction are treated as periodic (True) or closed (False). Default is False (non-periodic).
         u_start : xp.ndarray, optional

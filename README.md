@@ -8,14 +8,16 @@ A python tool for running resistor network simulations based on voxel structures
 </p>
 
 ## System requirements
-- NumPy
-- Numba
-- pandas
-- pyevtk
+
+- CuPy
 - Matplotlib
 - NetworkX
+- Numba
+- NumPy
+- pandas
+- pyevtk
 - scikit-image
-- CuPy
+
 
 ## Installation & Updates
 1) Create a conda environment and activate it

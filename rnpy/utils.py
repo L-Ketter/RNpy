@@ -78,9 +78,9 @@ def compositefigure(
     color_arr = np.zeros(arr.shape, dtype=object)
     if color_lst and color_map:
         raise ValueError(
-            "Either color_lst or color_map should be provided, but not both. " \
-            f"You chose color_lst={color_lst} and color_map={color_map}. " \
-            "One of them should be None."
+            "Either color_lst or color_map should be provided. "
+            f"You provided both: color_lst={color_lst} and color_map={color_map}. "
+            "One of them needs to be None."
         )
     if color_lst:
         for i in range(arr.max()+1):

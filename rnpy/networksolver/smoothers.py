@@ -66,7 +66,10 @@ class SOR(BaseSolver):
 
     def update_x(self, nw, x, rhs=None):
         if nw.periodic:
-            raise(NotImplementedError("SOR with periodic boundary conditions is not implemented."))
+            raise NotImplementedError(
+                "This SOR implementation cannot handle periodic boundary conditions. "
+                "Consider using another solver instead."
+            )
         k_arrs = tuple(k for k in nw.k_arrs.values())
         _update_x_SOR(x, k_arrs, rhs=rhs, omega=self.omega)
         return x

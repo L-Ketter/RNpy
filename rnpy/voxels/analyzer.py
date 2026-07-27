@@ -62,6 +62,7 @@ class VoxAnalyzer():
             self,
             phase_id,
             periodic=[True, True, True],
+            print_progress=False
         ):
         """
         Analyze connected components of a given phase in the voxel structure with regard
@@ -108,24 +109,27 @@ class VoxAnalyzer():
             results[lbl]["surf_area_fracs"] += np.array(
                 [np.sum(nbr_ids_lbl == surf_id) for surf_id in unique_surf_ids]
             )
-            if i % 100000 == 0:
+            if print_progress and i % 100000 == 0:
                 print(f"\rProcessed {i}/{mask_sum} voxels", end='', flush=True)
-        print()
+        if print_progress:
+            print()
         for lbl in results:
             results[lbl]["surf_area_fracs"] /= results[lbl]["num_surfaces"]
         return lbls, results, unique_surf_ids
 
-    def _get_cluster_boundary_contacts(self, phase_id, periodic=[False, False, False]):
+    def _get_cluster_boundary_contacts(self, phase_id, periodic=[False, False, False], print_progress=False):
         """
         Get the labels of the connected components of a given phase in the voxel structure as well as the
         contacting ids with the boundaries.
         """
         # get labels
-        print('Getting labels for phase', phase_id)
+        if print_progress:
+            print('Getting labels for phase', phase_id)
         lbls = self.get_labels(phase_id, periodic=periodic)
         unique_lbls = np.unique(lbls)
         # get neighbor ids
-        print('Getting neighbor ids for phase', phase_id)
+        if print_progress:
+            print('Getting neighbor ids for phase', phase_id)
         max_id = self.voxel_struc.max()
         boundary_ids = (
             (max_id+1, max_id+2),
@@ -138,7 +142,8 @@ class VoxAnalyzer():
             constant_values=boundary_ids
         )
         # get boundary contacts for each label
-        print('Getting boundary contacts for phase', phase_id)
+        if print_progress:
+            print('Getting boundary contacts for phase', phase_id)
         boundary_contacts = {}
         outer_nbrs = np.concatenate([nbr_ids[face].reshape(-1,6) for face in self.faces])
         outer_lbls = np.concatenate([lbls[face].flatten() for face in self.faces])
@@ -149,9 +154,10 @@ class VoxAnalyzer():
             lbl_nbr_ids = set(outer_nbrs[outer_lbls == lbl].flatten())
             contacts = [b_id for b_id in flat_boundary_ids if b_id in lbl_nbr_ids]
             boundary_contacts[lbl] = contacts
-            if i % 10 == 0:
+            if print_progress and i % 10 == 0:
                 print(f"\rProcessed {i}/{unique_outer_lbls.shape[0]} labels", end='', flush=True)
-        print()
+        if print_progress:
+            print()
         for lbl in unique_lbls:
             if lbl == 0 or lbl in boundary_contacts:
                 continue
@@ -216,7 +222,7 @@ class VoxAnalyzer():
             An array of the same shape as the voxel structure,
             with the background labeled as 0, non-percolating clusters labeled as 1, and percolating clusters labeled as 2.
         """
-        lbls, boundary_ids, boundary_contacts = self._get_cluster_boundary_contacts(phase_id, periodic=periodic )
+        lbls, boundary_ids, boundary_contacts = self._get_cluster_boundary_contacts(phase_id, periodic=periodic)
         b_ids = [boundary_ids[i] for i, b in enumerate(self.boundaries) if b.startswith(axis)]
 
         percolating_labels = [lbl for lbl, contacts in boundary_contacts.items() if b_ids[0] in contacts and b_ids[1] in contacts]

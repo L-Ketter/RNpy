@@ -74,7 +74,7 @@ def parallel_connected(size, volfracs):
     array = np.rot90(array, k=1, axes=(0,2))
     return array
 
-def sc_random(size, volfracs):
+def sc_random(size, volfracs, seed=None):
     """
     Generates a 3D cubic array representing a random composite with specified volume fractions.
     The number of voxels in each phase is determined by the volume fractions provided.
@@ -93,7 +93,7 @@ def sc_random(size, volfracs):
         A 3D cubic array with phases randomly distributed.
     """
     ordered = series_connected(size, volfracs).flatten()
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
     shuffled = rng.permutation(ordered)
     array = shuffled.reshape((size, size, size))
     return array

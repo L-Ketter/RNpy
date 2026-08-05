@@ -62,7 +62,8 @@ class VoxAnalyzer():
             self,
             phase_id,
             periodic=[True, True, True],
-            print_progress=False
+            print_progress=False,
+            per_lbl = True
         ):
         """
         Analyze connected components of a given phase in the voxel structure with regard
@@ -88,34 +89,42 @@ class VoxAnalyzer():
             Array of unique surface ids that are in contact with the given phase.
             If non-periodic boundaries are included, they get a unique id, which is one + max id of the voxel structure.
         """
-        lbls = self.get_labels(phase_id, periodic=periodic)
         nbr_ids = self.get_neighbor_ids(periodic=periodic)
-        lbls_flat = lbls.flatten()
+        mask = self.voxel_struc == phase_id
         nbrs_flat = nbr_ids.reshape(-1, 6)
-        mask = lbls_flat != 0
-        mask_sum = mask.sum()
+        mask_flat = mask.flatten()
         unique_ids = np.unique(nbrs_flat)
         unique_surf_ids = unique_ids[unique_ids != phase_id]
-        results = {}
-        for i, (lbl, nbr_ids_lbl) in enumerate(zip(lbls_flat[mask], nbrs_flat[mask])):
-            if lbl not in results:
-                results[lbl] = {
-                    "num_voxels": 0,
-                    "num_surfaces": 0,
-                    "surf_area_fracs": np.zeros_like(unique_surf_ids, dtype=float)
-                }
-            results[lbl]["num_voxels"] += 1
-            results[lbl]["num_surfaces"] += np.sum(nbr_ids_lbl != phase_id)
-            results[lbl]["surf_area_fracs"] += np.array(
-                [np.sum(nbr_ids_lbl == surf_id) for surf_id in unique_surf_ids]
-            )
-            if print_progress and i % 100000 == 0:
-                print(f"\rProcessed {i}/{mask_sum} voxels", end='', flush=True)
-        if print_progress:
-            print()
-        for lbl in results:
-            results[lbl]["surf_area_fracs"] /= results[lbl]["num_surfaces"]
-        return lbls, results, unique_surf_ids
+
+        if per_lbl:
+            lbls = self.get_labels(phase_id, periodic=periodic)
+            lbls_flat = lbls.flatten()
+            results = {}
+            for (lbl, nbr_ids_lbl) in (zip(lbls_flat[mask_flat], nbrs_flat[mask_flat])):
+                if lbl not in results:
+                    results[lbl] = {
+                        "num_voxels": 0,
+                        "num_surfaces": 0,
+                        "surf_area_fracs": np.zeros_like(unique_surf_ids, dtype=float)
+                    }
+                results[lbl]["num_voxels"] += 1
+                results[lbl]["num_surfaces"] += np.sum(nbr_ids_lbl != phase_id)
+                results[lbl]["surf_area_fracs"] += np.array(
+                    [np.sum(nbr_ids_lbl == surf_id) for surf_id in unique_surf_ids]
+                )
+            for lbl in results.keys():
+                results[lbl]["surf_area_fracs"] /= results[lbl]["num_surfaces"]
+
+        if not per_lbl:
+            num_surfaces = np.sum(nbrs_flat[mask_flat] != phase_id)
+            results = {
+                "num_voxels": np.sum(mask_flat),
+                "num_surfaces": num_surfaces,
+                "surf_area_fracs": np.array(
+                    [np.sum(nbrs_flat[mask_flat] == surf_id) for surf_id in unique_surf_ids]
+                ) / num_surfaces
+            }
+        return results, unique_surf_ids
 
     def _get_cluster_boundary_contacts(self, phase_id, periodic=[False, False, False], print_progress=False):
         """

@@ -86,6 +86,8 @@ def sc_random(size, volfracs, seed=None):
     volfracs : list of float
         List of volume fractions for each phase in percent (0-100). The sum of the
         volume fractions should equal 100.
+    seed : int, optional
+        Random seed to use for reproducibility. Default is None.
 
     Returns
     -------

@@ -7,16 +7,18 @@ class BuildContext():
     The BuildContext class is a simple data container that holds all the parameters
     and intermediate variables needed during the building of the Network object.
     """
-    def __init__(self,
-                 voxel_struc,
-                 phase_conds,
-                 dtype=None,
-                 use_gpu=False,
-                 int_bounds=None,
-                 mat_bounds=None,
-                 u_start=None,
-                 periodic=False,
-                 **kwargs):
+    def __init__(
+            self,
+            voxel_struc,
+            phase_conds,
+            dtype=None,
+            use_gpu=False,
+            int_bounds=None,
+            mat_bounds=None,
+            u_start=None,
+            periodic=False,
+            **kwargs
+        ):
 
         self.dtype = dtype
         self.use_gpu = use_gpu

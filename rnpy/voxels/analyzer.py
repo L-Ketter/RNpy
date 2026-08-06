@@ -62,7 +62,6 @@ class VoxAnalyzer():
             self,
             phase_id,
             periodic=[True, True, True],
-            print_progress=False,
             per_lbl = True
         ):
         """
@@ -103,6 +102,7 @@ class VoxAnalyzer():
             for (lbl, nbr_ids_lbl) in (zip(lbls_flat[mask_flat], nbrs_flat[mask_flat])):
                 if lbl not in results:
                     results[lbl] = {
+                        "unique_surf_ids": unique_surf_ids,
                         "num_voxels": 0,
                         "num_surfaces": 0,
                         "surf_area_fracs": np.zeros_like(unique_surf_ids, dtype=float)
@@ -120,11 +120,12 @@ class VoxAnalyzer():
             results = {
                 "num_voxels": np.sum(mask_flat),
                 "num_surfaces": num_surfaces,
+                "surf_ids": unique_surf_ids,
                 "surf_area_fracs": np.array(
                     [np.sum(nbrs_flat[mask_flat] == surf_id) for surf_id in unique_surf_ids]
                 ) / num_surfaces
             }
-        return results, unique_surf_ids
+        return results
 
     def _get_cluster_boundary_contacts(self, phase_id, periodic=[False, False, False], print_progress=False):
         """

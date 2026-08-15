@@ -1,6 +1,6 @@
 import numpy as np
 
-def blobs3D(size, disp_volfrac, sclust):
+def blobs3D(size, disp_volfrac, sclust, fill_wo_clustering=True):
     """
     Generates a 3D cubic array representing a binary composite with dispersed phase and inclusions of size sclust.
     The dispersed phase is represented by 1s and the continuous phase by 0s.
@@ -13,6 +13,10 @@ def blobs3D(size, disp_volfrac, sclust):
         Volume fraction of the dispersed phase in percent (0-100).
     sclust : int
         Number of voxels per cluster of the dispersed phase inclusions.
+    fill_wo_clustering : bool, optional
+        If True, remaining voxels to reach the desired volume fraction will be filled
+        randomly without clustering.
+        Default is True.
 
     Returns
     -------
@@ -41,15 +45,14 @@ def blobs3D(size, disp_volfrac, sclust):
             for x,y,z in cluster: # insert a cluster into the array
                 array[x,y,z] = 1
         # add voxels to reach desired volume fraction
-        missing = disp_voxel_num - (array==1).sum()
-        count = 0
-        while count < missing:
-            x,y,z = np.random.choice(size, 3)
-            if array[x,y,z] == 0:
-                array[x,y,z] = 1
-                count+=1
-        print('# total voxels:', (array==0).sum() + (array==1).sum())
-        print('# disp phase voxels:', (array==1).sum())
+        if fill_wo_clustering:
+            missing = disp_voxel_num - (array==1).sum()
+            count = 0
+            while count < missing:
+                x,y,z = np.random.choice(size, 3)
+                if array[x,y,z] == 0:
+                    array[x,y,z] = 1
+                    count+=1
     return array
 
 def parallel_connected(size, volfracs):

@@ -38,6 +38,7 @@ def compositefigure(
         show=True,
         save=False,
         name='',
+        zero_bg=False,
         color_lst=['darkorchid', 'khaki'],
         color_map=None,
         vmin=None,
@@ -57,6 +58,9 @@ def compositefigure(
         If True, the figure will be saved as a PDF file. Default is False.
     name : str, optional
         The output file name (without extension). Default is an empty string.
+    zero_bg: bool, optional
+        If True, the value 0 will be interpreted as background and will not be plotted.
+        Default is False (no background).
     color_lst: list of str, optional
         A list of colors to represent the different phases in the figure.
         This is needed to represent arrays with discrete values.
@@ -75,6 +79,8 @@ def compositefigure(
         If colormap is provided and vmax is not provided, the maximum value of arr will be used.
     """
     filled = np.ones(arr.shape, dtype=bool)
+    if zero_bg:
+        filled[arr == 0] = False
     color_arr = np.zeros(arr.shape, dtype=object)
     if color_lst and color_map:
         raise ValueError(
@@ -99,8 +105,8 @@ def compositefigure(
     ax.set_aspect('equal')
     ax.set_axis_off()
     if save is True:
-        figname = name+'_compositefig.pdf'
-        plt.savefig(figname)
+        figname = name+'_compositefig.png'
+        plt.savefig(figname, dpi=600, bbox_inches='tight')
     if show is True:
         plt.show()
     plt.close()

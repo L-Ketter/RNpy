@@ -15,21 +15,23 @@ class BaseSolver:
             res_max=1e-9,
             it_max=1e7,
             it_log=50,
+            print_log=True
         ):
         it, self.it_lst = 0, []
         self.res_lst, self.k_effs = [], []
-        print("-"*70, "\nsolving the network ...")
+        if print_log:
+            print("-"*70, "\nsolving the network ...") if print_log else None
         t_start = time.time()
         while it <= it_max:
             if it % it_log == 0:
-                self._log_lists(it, res_max, nw, print_output=True)
+                self._log_lists(it, res_max, nw, print_output=print_log)
             if self.res_lst[-1] < res_max or it == it_max:
                 if it == it_max:
                     warnings.warn(
                         f"maximum number of iterations ({it_max}) reached without convergence "
                         f"(final residual: {self.res_lst[-1]:.2e} ==> {res_max:.2e})."
                     )
-                print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)')
+                print(f'\nFinished calculation in {utils.format_seconds(time.time()-t_start)} (hh:mm:ss)') if print_log else None
                 return nw
             it += 1
             nw.u = self.update_x(nw, x=nw.u, rhs=None)

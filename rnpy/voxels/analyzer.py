@@ -185,12 +185,14 @@ class VoxAnalyzer():
         phase_id : int
             The phase value to analyze.
         boundary : str, optional
-            The boundary to check for connectivity. Default is 'x0'.
+            The boundary to check for connectivity.
             boundary can be one of the following: 'x0', 'xN', 'y0', 'yN', 'z0', 'zN'.
+            Default is 'x0'.
         periodic : list of bool, optional
             A list of three boolean values indicating whether periodic boundaries
-            are considered in the x, y, and z directions, respectively. Default is [False, False, False].
+            are considered in the x, y, and z directions, respectively.
             The boundary in question cannot be periodic, so the corresponding value in the list must be False.
+            Default is [False, False, False].
 
         Returns
         -------
@@ -220,11 +222,13 @@ class VoxAnalyzer():
         phase_id : int
             The phase value to analyze.
         axis : str, optional
-            The axis along which to check for percolation. Default is 'x' (x-axis).
+            The axis along which to check for percolation.
             axis can be one of the following: 'x', 'y', 'z'.
+            Default is 'x'.
         periodic : list of bool, optional
-            A list of three boolean values indicating whether periodic boundaries.
+            A list of three boolean values indicating whether periodic boundaries are considered in the x, y, and z directions, respectively.
             The axis in question cannot be periodic, so the corresponding value in the list must be False.
+            Default is [False, False, False].
 
         Returns
         -------

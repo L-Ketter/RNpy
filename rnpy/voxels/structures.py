@@ -24,7 +24,7 @@ def blobs3D(size, disp_volfrac, sclust, fill_wo_clustering=True):
         A 3D cubic array with the dispersed phase inclusions represented by 1s and the continuous phase by 0s.
     """
     if disp_volfrac == 100 or disp_volfrac == 0 or sclust == 1:
-        array = sc_random(size, volfracs=[100-disp_volfrac, disp_volfrac])
+        array = sc_random(size, volfracs=[100-disp_volfrac, disp_volfrac], vf_exakt=True)
     else:
         array = np.zeros((size, size, size), dtype=int)
         disp_voxel_num = size**3 * disp_volfrac / 100
@@ -77,7 +77,7 @@ def parallel_connected(size, volfracs):
     array = np.rot90(array, k=1, axes=(0,2))
     return array
 
-def sc_random(size, volfracs, seed=None):
+def sc_random(size, volfracs, seed=None, vf_exakt=False):
     """
     Generates a 3D cubic array representing a random composite with specified volume fractions.
     The number of voxels in each phase is determined by the volume fractions provided.
@@ -91,16 +91,29 @@ def sc_random(size, volfracs, seed=None):
         volume fractions should equal 100.
     seed : int, optional
         Random seed to use for reproducibility. Default is None.
+    vf_exakt : bool, optional
+        If True, the volume fractions will be exactly matched by shuffling a pre-ordered array.
+        Else, the array will be constructed by thresholding random noise, which may lead to slight deviations from the specified volume fractions.
+        Default is False.
 
     Returns
     -------
     np.ndarray
         A 3D cubic array with phases randomly distributed.
     """
-    ordered = series_connected(size, volfracs).flatten()
     rng = np.random.default_rng(seed)
-    shuffled = rng.permutation(ordered)
-    array = shuffled.reshape((size, size, size))
+    if vf_exakt:
+        ordered = series_connected(size, volfracs).flatten()
+        shuffled = rng.permutation(ordered)
+        array = shuffled.reshape((size, size, size))
+    else:
+        random_noise = rng.random((size, size, size))
+        array = np.zeros((size, size, size), dtype=int)
+        thres_lo = 0
+        for i, vf in enumerate(volfracs):
+            thres_up = thres_lo + vf/100
+            array[(random_noise >= thres_lo) & (random_noise < thres_up)] = i
+            thres_lo = thres_up
     return array
 
 def series_connected(size, volfracs):

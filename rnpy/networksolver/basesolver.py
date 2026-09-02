@@ -13,19 +13,19 @@ class BaseSolver:
             self,
             nw,
             res_max=1e-9,
-            it_max=None,
             t_max=None,
+            it_max=None,
             it_log=50,
             print_log=True
         ):
         if print_log:
             print("-"*70, "\nsolving the network ...")
         it, self.it_lst = 0, []
-        t_0, self.t_lst = time.time(), []
+        t_0, self.t_lst = time.perf_counter(), []
         self.res_lst, self.k_effs = [], []
         converged = False
         while not converged:
-            t = time.time()-t_0
+            t = time.perf_counter()-t_0
             if it % it_log == 0:
                 self._log_lists(it, t, res_max, nw, print_log=print_log)
             converged = self.res_lst[-1] < res_max

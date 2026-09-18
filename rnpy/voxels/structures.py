@@ -1,10 +1,12 @@
 import numpy as np
 from numba import njit
+import warnings
 from .analyzer import VoxAnalyzer
 
 @njit
 def _blobs_gen_clusters(size, s_clust, num_clust, seed):
-    np.random.seed(seed)
+    if seed is not None:
+        np.random.seed(seed)
     directions = [
         (1, 0, 0), (-1, 0, 0),
         (0, 1, 0), (0, -1, 0),
@@ -27,7 +29,7 @@ def _blobs_gen_clusters(size, s_clust, num_clust, seed):
             )
             surf.append(neigh)
         while len(clust) < s_clust: # iteratively generate a clusters of connected positions
-            new_pos = surf[np.random.randint(len(surf))]
+            new_pos = surf[np.random.randint(0, len(surf)-1)]
             surf.remove(new_pos)
             for d in directions:
                 neigh = (
@@ -41,7 +43,7 @@ def _blobs_gen_clusters(size, s_clust, num_clust, seed):
         clusters.update(clust)
     return list(clusters)
 
-def blobs(size, vf_disp, s_clust, fill_random=False, fill_attach=True, seed=None):
+def blobs(size, vf_disp, r_mean, fill_random=False, fill_attach=True, seed=None):
     """
     Generates a 3D cubic array representing a binary composite with dispersed phase and inclusions of size sclust.
     The dispersed phase is represented by 1s and the continuous phase by 0s.
@@ -52,8 +54,8 @@ def blobs(size, vf_disp, s_clust, fill_random=False, fill_attach=True, seed=None
         Edge length of the cubic array in voxels.
     vf_disp : float
         Volume fraction of the dispersed phase in (0-1).
-    sclust : int
-        Number of voxels per cluster of the dispersed phase inclusions.
+    r_mean : float
+        Mean radius of the dispersed phase inclusions in normalized units (0-1, relative to the cube size).
     fill_random : bool, optional
         If True, remaining voxels to reach the desired volume fraction will be filled
         randomly without clustering.
@@ -69,49 +71,50 @@ def blobs(size, vf_disp, s_clust, fill_random=False, fill_attach=True, seed=None
         A 3D cubic array with the dispersed phase inclusions represented by 1s and the continuous phase by 0s.
     """
     rng = np.random.default_rng(seed)
-    if vf_disp == 1 or vf_disp == 0 or s_clust == 1:
-        arr = sc_random(size, vfs=[1-vf_disp, vf_disp])
-    else:
-        arr = np.zeros((size, size, size), dtype=int)
-        vox_num_disp = arr.size*vf_disp
-        num_clust = int(vox_num_disp/s_clust)
-        # generate and insert clusters
-        clusters = _blobs_gen_clusters(size, s_clust, num_clust, seed)
-        for x, y, z in list(clusters):
-            arr[x, y, z] = 1
-        # add voxels to reach desired volume fraction
-        if fill_random or fill_attach:
-            missing = int(np.round(vox_num_disp)-(arr==1).sum())
-            if fill_random:
+    arr = np.zeros((size, size, size), dtype=int)
+    s_clust = int(4/3*np.pi*(r_mean*size)**3)  # approximate number of voxels per cluster based on a mean radius
+    vox_num_disp = int(arr.size*vf_disp)
+    num_clust = vox_num_disp//s_clust
+    if num_clust < 1:
+        warnings.warn("The number of clusters is less than 1. Switching to structures.sc_random()")
+        return sc_random(size, [1-vf_disp, vf_disp])
+    # generate and insert clusters
+    clusters = _blobs_gen_clusters(size, s_clust, num_clust, seed)
+    for x, y, z in list(clusters):
+        arr[x, y, z] = 1
+    # add voxels to reach desired volume fraction
+    if fill_random or fill_attach:
+        missing = vox_num_disp-(arr==1).sum()
+        if fill_random:
+            idx_zeros = np.argwhere(arr==0)
+            idx_lst = rng.choice(
+               np.arange(len(idx_zeros)),
+                size=missing,
+                replace=False
+            )
+            idx_chosen = idx_zeros
+            for idx in idx_lst:
+                x, y, z = idx_chosen[idx]
+                arr[x, y, z] = 1
+        elif fill_attach:
+            inserted = 0
+            while inserted < missing:
+                vx = VoxAnalyzer(arr)
+                nbr_ids = np.sum(vx.get_neighbor_ids(), axis=-1)
                 idx_zeros = np.argwhere(arr==0)
-                idx_lst = rng.choice(
-                    np.arange(len(idx_zeros)),
-                    size=missing,
-                    replace=False
-                )
-                idx_chosen = idx_zeros
+                idx_chosen = [idx for idx in idx_zeros if nbr_ids[tuple(idx)] > 0]
+                if len(idx_chosen) < (missing-inserted):
+                    idx_lst = np.arange(len(idx_chosen))
+                else:
+                    idx_lst = rng.choice(
+                        np.arange(len(idx_chosen)),
+                        size=(missing-inserted),
+                        replace=False
+                    )
                 for idx in idx_lst:
                     x, y, z = idx_chosen[idx]
                     arr[x, y, z] = 1
-            elif fill_attach:
-                inserted = 0
-                while inserted < missing:
-                    vx = VoxAnalyzer(arr)
-                    nbr_ids = np.sum(vx.get_neighbor_ids(), axis=-1)
-                    idx_zeros = np.argwhere(arr==0)
-                    idx_chosen = [idx for idx in idx_zeros if nbr_ids[tuple(idx)] > 0]
-                    if len(idx_chosen) < (missing-inserted):
-                        idx_lst = np.arange(len(idx_chosen))
-                    else:
-                        idx_lst = rng.choice(
-                            np.arange(len(idx_chosen)),
-                            size=(missing-inserted),
-                            replace=False
-                        )
-                    for idx in idx_lst:
-                        x, y, z = idx_chosen[idx]
-                        arr[x, y, z] = 1
-                    inserted += len(idx_chosen)
+                inserted += len(idx_chosen)
     return arr
 
 def parallel_connected(size, vfs):

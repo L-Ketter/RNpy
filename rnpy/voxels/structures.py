@@ -218,19 +218,19 @@ def stack_series(size, vfs):
     return arr
 
 @njit
-def _fill_spheres(arr, p_spheres, radii):
+def _fill_spheres(arr, p_spheres, radii, periodic=True):
     nx, ny, nz = arr.shape
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
                 p_vox = ((i+0.5)/nx, (j+0.5)/ny, (k+0.5)/nz)
                 for s, radius in enumerate(radii):
-                    dist_sq = _get_dist_sq(p_vox, p_spheres[s], periodic=True)
+                    dist_sq = _get_dist_sq(p_vox, p_spheres[s], periodic=periodic)
                     if dist_sq <= radius**2:
                         arr[i,j,k] = 1
                         break
 
-def random_spheres(size, n_spheres, r_range, seed=None):
+def random_spheres(size, n_spheres, r_range, periodic=True, seed=None):
     """
     Generate a 3D cubic array with randomly placed overlapping spheres.
 
@@ -243,6 +243,8 @@ def random_spheres(size, n_spheres, r_range, seed=None):
     r_range : list
         Minimum and maximum radius of the spheres in normalized units (0-1).
         Radii are uniformly sampled within this range.
+    periodic : bool
+        Whether to apply periodic boundary conditions when placing spheres.
     seed : int
         Seed for the random number generator.
 
@@ -256,7 +258,7 @@ def random_spheres(size, n_spheres, r_range, seed=None):
     p_spheres = rng.random((n_spheres, 3))
     r_spheres = r_range[0] + (r_range[1]-r_range[0]) * (rng.random(n_spheres))
     arr = np.zeros((size, size, size), dtype=int)
-    _fill_spheres(arr, p_spheres, r_spheres)
+    _fill_spheres(arr, p_spheres, r_spheres, periodic=periodic)
     return arr
 
 def ordered_rods(size, r_rod, d_space):

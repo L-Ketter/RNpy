@@ -95,6 +95,6 @@ utils.store_data(
 
 The original code developed for this project is licensed under the MIT License.
 
-This project incorporates a modified version of the SNOW watershed approach by Jeff Gostick. The modified code is subject to the GNU General Public License, version 3 or any later version (GPLv3+). A copy of this license is provided in ./rnpy/voxels/_label_snow/COPYING.
+This project incorporates a modified version of the SNOW watershed approach by Jeff Gostick, which is subject to the GNU General Public License, version 3 or any later version (GPLv3+). A copy of this license is provided in ./rnpy/voxels/_label_snow/COPYING.
 
 If you use voxels.analyze.get_snow_labels() in your scientific work please cite the original publication (https://doi.org/10.1103/PhysRevE.96.023307).

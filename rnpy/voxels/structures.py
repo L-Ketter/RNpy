@@ -1,7 +1,15 @@
 import numpy as np
 from numba import njit
 import warnings
-from .analyzer import VoxAnalyzer
+from .analyze import get_neighbor_ids
+
+def _interpret_vf(vfs):
+    if len(vfs) > 1 and (np.sum(vfs) != 1 and np.sum(vfs) != 100):
+       raise ValueError("The sum of volume fractions must equal 1 or 100.")
+    if any(vf > 1 for vf in vfs):
+        warnings.warn("Volume fractions > 1 detected. Interpreting them as percentages. Please use 0-1 range in the future.")
+        vfs = [vf/100 for vf in vfs]
+    return vfs
 
 @njit
 def _get_dist_sq(p0, p1, periodic=True):
@@ -53,14 +61,6 @@ def _fill_blobs(arr, size, s_blob, p_blobs, seed=None):
         arr[x, y, z] = 1
     return arr
 
-def _interpret_vf(vfs):
-    if len(vfs) > 1 and (np.sum(vfs) != 1 and np.sum(vfs) != 100):
-       raise ValueError("The sum of volume fractions must equal 1 or 100.")
-    if any(vf > 1 for vf in vfs):
-        warnings.warn("Volume fractions > 1 detected. Interpreting them as percentages. Please use 0-1 range in the future.")
-        vfs = [vf/100 for vf in vfs]
-    return vfs
-
 def blobs(size, vf_disp, r_mean, fill_random=False, fill_attach=True, seed=None):
     """
     Generates a 3D cubic array representing a binary composite with dispersed phase and inclusions of size sclust.
@@ -75,8 +75,8 @@ def blobs(size, vf_disp, r_mean, fill_random=False, fill_attach=True, seed=None)
     r_mean : float
         Mean radius of the dispersed phase inclusions in normalized units (0-1, relative to the cube size).
     fill_random : bool, optional
-        If True, remaining voxels to reach the desired volume fraction will be filled
-        randomly without clustering.
+        If True, remaining voxels to reach the desired volume fraction will be filled randomly without clustering.
+        If False, remaining voxels will be filled by attaching to existing clusters.
         Default is False.
     fill_attach : bool, optional
         If True, remaining voxels to reach the desired volume fraction will be filled
@@ -115,8 +115,7 @@ def blobs(size, vf_disp, r_mean, fill_random=False, fill_attach=True, seed=None)
         elif fill_attach:
             inserted = 0
             while inserted < missing:
-                vx = VoxAnalyzer(arr)
-                nbr_ids_sum = np.sum(vx.get_neighbor_ids(), axis=-1)
+                nbr_ids_sum = np.sum(get_neighbor_ids(arr), axis=-1)
                 idx_zeros = np.argwhere(arr==0)
                 idx_chosen = [idx for idx in idx_zeros if nbr_ids_sum[tuple(idx)] > 0]
                 if len(idx_chosen) < (missing-inserted):

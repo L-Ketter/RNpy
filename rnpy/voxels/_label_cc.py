@@ -2,15 +2,22 @@ import numpy as np
 import networkx  as nx
 from skimage.measure import label
 
-def get_labels(
-        voxel_struc,
-        phase_id,
-        periodic=[True, True, True],
+def _relabel(labels):
+    """
+    Reindex all labels to consecutive integers (0, 1, 2, ...), preserving the background as 0.
+    """
+    unique_labels = np.unique(labels)
+    lookup = np.zeros(unique_labels.max() + 1, dtype=int)
+    lookup[unique_labels] = np.arange(len(unique_labels))
+    reindexed_labels = lookup[labels]
+    return reindexed_labels
+
+def _get_cc_labels(arr, phase_id, periodic=[False, False, False],
         ):
     """
     Get the labels of the connected components of a given phase in the voxel structure.
     """
-    labels = label(voxel_struc == phase_id, connectivity=1)
+    labels = label(arr == phase_id, connectivity=1)
     if not any(periodic):
         return labels
     else:
@@ -58,9 +65,4 @@ def _wrap_labels(labels, periodic=[True, True, True]):
     for new_label, group in enumerate(connected_label_groups, start=labels.max()+1):
         for old_label in group:
             periodic_labels[labels == old_label] = new_label
-    # Reindex all labels to consecutive integers (0, 1, 2, ...)
-    unique_labels = np.unique(periodic_labels)
-    lookup = np.zeros(unique_labels.max() + 1, dtype=int)
-    lookup[unique_labels] = np.arange(len(unique_labels))
-    reindexed_labels = lookup[periodic_labels]
-    return reindexed_labels
+    return _relabel(periodic_labels)
